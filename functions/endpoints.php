@@ -47,6 +47,18 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1', 'verify_resident',array(
+            'methods'  => 'POST',
+            'callback' => 'verify_resident',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1', 'all_data',array(
+            'methods'  => 'GET',
+            'callback' => 'get_all',
+            'permission_callback' => '__return_true',
+        ));
+
     }
 );
 
@@ -102,7 +114,8 @@ function user_email($data) {
 
 
          return rest_ensure_response( [
-             'msg'   => 'success'
+             'status' => true,
+             'message'   => 'success'
          ] );
 
          return set_status(200);
@@ -110,7 +123,8 @@ function user_email($data) {
 
      } else {
          return rest_ensure_response( [
-             'msg'   => 'error'
+             'status' => false,
+             'message'   => 'error'
          ] );
      }
 
@@ -230,31 +244,35 @@ function user_update($request) {
                     $array_data['profile_image'] = get_field('profile_image', 'user_' . $userId );
 
                     return rest_ensure_response( [
-                        'msg'   => 'User profile updated.',
+                        'message'   => 'User profile updated.',
                         'data' =>  $array_data
                     ] );
 
                 } else {
                     return rest_ensure_response( [
-                        'msg'   => 'profile image is not a valid image file',
+                        'status' => false,
+                        'message'   => 'profile image is not a valid image file',
                         //'data' =>  $file
                     ] );
                 }
             }
 
             return rest_ensure_response( [
-                'msg'   => 'User profile updated.',
+                'status' => true,
+                'message'   => 'User profile updated.',
                 'data' =>  $array_data
             ] );
         } else {
             return rest_ensure_response( [
-                'msg'   => 'Error'
+                'status' => false,
+                'message'   => 'Error'
             ] );
         }
 
     } else {
         return rest_ensure_response( [
-            'msg'   => 'Invalid token'
+            'status' => false,
+            'message'   => 'Invalid token'
         ] );
     }
 
@@ -281,16 +299,23 @@ function user_check($request) {
             //$array_data['vcode'] = $user;
 
             $response = new WP_REST_Response($array_data);
-            $response->set_status(200);
-            return $response;
+            return rest_ensure_response( [
+                'status' => true,
+                'data' => $array_data,
+                'message'   => 'You have successfully logged in'
+            ] );
+            return set_status(200);
+
         } else {
             return rest_ensure_response( [
-                'msg'   => 'Error'
+                'status' => false,
+                'message'   => 'Error'
             ] );
         }
     } else {
         return rest_ensure_response( [
-            'msg'   => 'Invalid token'
+            'status' => false,
+            'message'   => 'Invalid token'
         ] );
     }
 
@@ -309,8 +334,9 @@ function login_user($request)
 
     if ( is_wp_error($user) )
         return rest_ensure_response( [
+            'status' => false,
             'login' => 0,
-            'msg'   => 'The verification code or email address is incorrect.'
+            'message'   => 'The verification code or email address is incorrect.'
         ] );
 
     else {
@@ -338,13 +364,14 @@ function login_user($request)
         $response = json_decode($response, true);
 
         return rest_ensure_response( [
+            'status' => true,
             'login' => 1,
             'id' => $user->ID,
             'nonce' => $nonce,
-            //'session_tokens' => get_user_meta($user->ID, 'session_tokens', true),
+            'resident' => get_field('address', 'user_' . $user->ID ),
             'token' => $response['token'],
             'is_user_logged_in' => $current_user,
-            'msg'   => 'You have successfully logged in'
+            'message'   => 'You have successfully logged in'
         ] );
         return set_status(200);
     }
@@ -361,7 +388,8 @@ function rest_get_ads() {
 
     if ( empty( $posts ) ) {
         return rest_ensure_response( [
-            'msg'   => 'data not found'
+            'status' => false,
+            'message'   => 'data not found'
         ] );
     }
     $ins_data = array();
@@ -462,4 +490,155 @@ function rest_get_events() {
     $response = new WP_REST_Response($ins_data);
     $response->set_status(200);
     return $response;
+}
+
+function verify_resident($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $norumah = $request ["norumah"];
+        $idrumah = $request ["idrumah"];
+        $nama = $request ["nama"];
+        $phone = $request ["noWa"];
+
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            's' => $norumah,
+            'meta_query' => array(
+                array(
+                    'key' => 'id_rumah',
+                    'value' => $idrumah,
+                    'compare' => 'LIKE'
+                ),
+            )
+        );
+
+        $posts = get_posts($args);
+
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => 'data not found'
+                //'data' => '',
+            ] );
+        } else {
+            $idrm = '';
+            foreach ( $posts as $post ) {
+                $idrm =  $post->ID;
+                $ins_data[] = array(  // you can ad anything here and as many as you want
+                    'IDrumah' => $post->ID,
+                    //'IDuser' => get_field( 'field_63270532649ec', $post->ID),
+                );
+            }
+
+            $current_user = get_field( 'field_63270532649ec', $idrm );
+            if($current_user) {
+                array_push($current_user, $userId);
+            } else {
+                $current_user = $userId;
+            }
+
+            // set rumah
+            update_field( 'field_63270532649ec', $current_user, $idrm );
+
+            //update user
+            wp_update_user([
+                'ID' => $userId, // this is the ID of the user you want to update.
+                'display_name' => $nama,
+            ]);
+
+            update_user_meta( $userId, 'name_user',  $nama);
+            update_user_meta( $userId, 'phone_number',  $phone);
+            update_user_meta( $userId, 'address',  $idrm);
+
+            return rest_ensure_response( [
+                'status' => true,
+                'message'   => 'success',
+                'data' => $ins_data,
+            ] );
+        }
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+
+}
+
+function get_all() {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => 'failed'
+                //'data' => '',
+            ] );
+        } else {
+            foreach ( $posts as $post ) {
+               // $idrm =  $post->ID;
+                $iplbaru = get_field('status_ipl',$post->ID)['ipl_terbaru'];
+                $dlast = strtotime($iplbaru);
+                $datelast = date('F Y', $dlast);
+                setlocale(LC_CTYPE, 'Indonesian');
+                setlocale(LC_TIME, 'Indonesian');
+                $month_name = strftime('%B %Y', $dlast);
+                $ins_data[] = array(  // you can ad anything here and as many as you want
+                    'ID_home' => $post->ID,
+                    'home' => $post->post_title,
+                    'ID_unique' => get_field( 'id_rumah', $post->ID ),
+                    'last_ipl' => $iplbaru,
+                    'count_ipl' => get_field( 'status_ipl', $post->ID )['jumlah_ipl_belum_bayar'],
+                    //'bill_ipl' => get_field( 'status_ipl', $post->ID )['ipl_belum_bayar'],
+                    'bill_ipl' => str_replace("\n", ", ",  get_field( 'status_ipl', $post->ID )['ipl_belum_bayar']),
+                    'profile' => array(
+                        'name' =>$user->data->display_name,
+                        'email' => $user->data->user_email,
+                        'phone' => get_field('phone_number', 'user_' . $userId )
+                    )
+                );
+            }
+
+            return rest_ensure_response( [
+                'status' => true,
+                'message'   => 'success',
+                'data' => $ins_data,
+            ] );
+        }
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+
 }
