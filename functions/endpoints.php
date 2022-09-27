@@ -1,5 +1,24 @@
 <?php
 /**
+ * Midtrans
+ */
+
+require_once dirname(__FILE__) . '/midtrans-php/Midtrans.php';
+//$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+//$dotenv->load();
+
+// Set your Merchant Server Key
+Midtrans\Config::$serverKey = 'SB-Mid-server-dA_GjJQ5g6VuwuWJQvsmRlAt';
+// Set to Development/Sandbox Environment (default). Set to true for Production Environment (accept real transaction).
+Midtrans\Config::$isProduction = false;
+// Set sanitization on (default)
+Midtrans\Config::$isSanitized = true;
+// Set 3DS transaction for credit card to true
+Midtrans\Config::$is3ds = true;
+
+
+
+/**
  * Register custom REST API routes.
  */
 add_action(
@@ -59,8 +78,22 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1', 'checkout',array(
+            'methods'  => 'POST',
+            'callback' => 'checkout',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1', 'notification',array(
+            'methods'  => 'GET',
+            'callback' => 'notification',
+            'permission_callback' => '__return_true',
+        ));
+
     }
 );
+
+
 
 function user_email($data) {
 
@@ -212,7 +245,7 @@ function user_update($request) {
             $array_data['first_name'] = get_user_meta($userId, 'first_name', true);
             $array_data['last_name'] = get_user_meta($userId, 'last_name', true);
             $array_data['display_name'] = $user->data->display_name;
-            $array_data['address'] = get_field('address', 'user_' . $userId );
+            $array_data['address'] = get_field('address', 'user_' . $userId )->post_title;
             $array_data['phone_number'] = get_field('phone_number', 'user_' . $userId );
             $array_data['createdAt'] = $user->data->user_registered;
 
@@ -292,7 +325,7 @@ function user_check($request) {
             $array_data['first_name'] = get_user_meta($userId, 'first_name', true);
             $array_data['last_name'] = get_user_meta($userId, 'last_name', true);
             $array_data['display_name'] =$user->data->display_name;
-            $array_data['address'] = get_field('address', 'user_' . $userId );
+            $array_data['address'] = get_field('address', 'user_' . $userId )->post_title;
             $array_data['phone_number'] = get_field('phone_number', 'user_' . $userId );
             $array_data['createdAt'] = $user->data->user_registered;
             $array_data['profile_image'] = get_field('profile_image', 'user_' . $userId );
@@ -620,7 +653,7 @@ function get_all() {
                     //'bill_ipl' => get_field( 'status_ipl', $post->ID )['ipl_belum_bayar'],
                     'bill_ipl' => str_replace("\n", ", ",  get_field( 'status_ipl', $post->ID )['ipl_belum_bayar']),
                     'profile' => array(
-                        'name' =>$user->data->display_name,
+                        'name' => $user->data->display_name,
                         'email' => $user->data->user_email,
                         'phone' => get_field('phone_number', 'user_' . $userId )
                     )
@@ -642,3 +675,132 @@ function get_all() {
     }
 
 }
+
+
+function checkout($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+
+
+        // Required
+        $transaction_details = array(
+            'order_id' => 'order-ipl70-'.time(),
+            'gross_amount' => $request->get_params()['price'], // no decimal allowed for creditcard
+        );
+
+        // Optional
+        $item_details = array(
+            array(
+                'id' => 'IPL70',
+                'price' =>  70000,
+                'quantity' =>  $request->get_params()['qty'],
+                'name' => 'IPL VC 70.000',
+                'brand' => 'Villa Citayam',
+                'category'=> 'iuran',
+                'merchant_name' => 'Villa Citayam'
+            )
+        );
+
+        // Optional
+        $billing_address = array(
+            'first_name'    => $user->data->display_name,
+            'last_name'     => "",
+            'address'       => get_field('address', 'user_' . $userId )->post_title,
+            //'city'          => "Sukabumi",
+            //'postal_code'   => "143115",
+            'phone'         => get_field('phone_number', 'user_' . $userId ),
+           // 'country_code'  => 'IDN'
+        );
+
+        // Optional
+        $customer_details = array(
+            'first_name'    => $user->data->display_name,
+            //'last_name'     => "Rizky",
+            'email'         => $user->data->user_email,
+            'phone'         => get_field('phone_number', 'user_' . $userId ),
+            'billing_address'  => $billing_address
+        );
+
+        // Optional, remove this to display all available payment methods
+        //$enable_payments = array('credit_card','cimb_clicks','mandiri_clickpay','echannel');
+
+        $transaction = array(
+            //'enabled_payments' => $enable_payments,
+            'transaction_details' => $transaction_details,
+            'customer_details' => $customer_details,
+            'item_details' => $item_details,
+            'custom_field1' => 'KET: '.$request->get_params()['desc'],
+            'custom_field2' => 'NOTES: '.$request->get_params()['notes'],
+        );
+
+        $snapToken = Midtrans\Snap::getSnapToken($transaction);
+        //echo "snapToken = ".$snapToken;
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+           // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
+            'snapToken' => $snapToken,
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+
+
+}
+
+function notification($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    $notif = new Midtrans\Notification();
+
+    $transaction = $notif->transaction_status;
+    $type = $notif->payment_type;
+    $order_id = $notif->order_id;
+    $fraud = $notif->fraud_status;
+
+    $message = 'ok';
+    if ($transaction == 'capture') {
+        // For credit card transaction, we need to check whether transaction is challenge by FDS or not
+        if ($type == 'credit_card') {
+            if ($fraud == 'challenge') {
+                // TODO set payment status in merchant's database to 'Challenge by FDS'
+                // TODO merchant should decide whether this transaction is authorized or not in MAP
+                $message = "Transaction order_id: " . $order_id ." is challenged by FDS";
+            } else {
+                // TODO set payment status in merchant's database to 'Success'
+                $message = "Transaction order_id: " . $order_id ." successfully captured using " . $type;
+            }
+        }
+    } elseif ($transaction == 'settlement') {
+        // TODO set payment status in merchant's database to 'Settlement'
+        $message = "Transaction order_id: " . $order_id ." successfully transfered using " . $type;
+    } elseif ($transaction == 'pending') {
+        // TODO set payment status in merchant's database to 'Pending'
+        $message = "Waiting customer to finish transaction order_id: " . $order_id . " using " . $type;
+    } elseif ($transaction == 'deny') {
+        // TODO set payment status in merchant's database to 'Denied'
+        $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is denied.";
+    } elseif ($transaction == 'expire') {
+        // TODO set payment status in merchant's database to 'expire'
+        $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is expired.";
+    } elseif ($transaction == 'cancel') {
+        // TODO set payment status in merchant's database to 'Denied'
+        $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is canceled.";
+    }
+
+    return rest_ensure_response( [
+        'status' => true,
+        'message'   => $message,
+        // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
+        //'snapToken' => $snapToken,
+    ] );
+
+}
+
