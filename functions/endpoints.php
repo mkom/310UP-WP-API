@@ -477,12 +477,20 @@ function login_user($request)
         $response = wp_remote_retrieve_body( $request );
         $response = json_decode($response, true);
 
+        $resident =  get_field('address', 'user_' . $user->ID );
+
+        if ($resident == false) {
+            $resident = null;
+        } else {
+            $resident = get_field('address', 'user_' . $user->ID )->post_title;
+        }
+
         return rest_ensure_response( [
             'status' => true,
             'login' => 1,
             'id' => $user->ID,
             'nonce' => $nonce,
-            'resident' => get_field('address', 'user_' . $user->ID )->post_title,
+            'resident' => $resident,
             'token' => $response['token'],
             'is_user_logged_in' => $current_user,
             'message'   => 'You have successfully logged in'
