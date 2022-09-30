@@ -30,6 +30,12 @@ add_action(
             'permission_callback' => '__return_true',
         ) );
 
+        register_rest_route( 'cs/v1', 'send_verify', array(
+            'methods'             => 'POST',
+            'callback'            => 'send_verify',
+            'permission_callback' => '__return_true',
+        ) );
+
         register_rest_route( 'cs/v1', 'user_data',array(
             'methods'  => 'GET',
             'callback' => 'user_check',
@@ -85,7 +91,7 @@ add_action(
         ));
 
         register_rest_route( 'cs/v1', 'notification',array(
-            'methods'  => 'GET',
+            'methods'  => 'POST',
             'callback' => 'notification',
             'permission_callback' => '__return_true',
         ));
@@ -160,6 +166,75 @@ function user_email($data) {
              'message'   => 'error'
          ] );
      }
+
+
+}
+
+function send_verify($request) {
+
+    // Get user by their email address
+    $user_id = '';
+    $random_password = create_random_code( 6,  [
+        'upper_case'        => false,
+        'lower_case'        => false,
+        'number'            => true,
+        'special_character' => false
+    ] );
+    $user_login  = $request["email"];
+    $user_email = $request["email"];
+    $user_pass = $random_password;
+
+    if ( $request["email"]) {
+        if ( false == email_exists( $user_email ) ) {
+            $userdata = array('user_login'=>$user_login, 'user_email'=>$user_email, 'user_pass'=>$user_pass);
+            $user_idnew = wp_insert_user($userdata);
+            update_user_meta( $user_idnew, 'verification_code', $user_pass);
+
+            $user = get_user_by( 'email', $user_email);
+            $user_id = $user->ID;
+
+            global $wpdb;
+            $tablename = $wpdb->prefix . "users";
+
+            $wpdb->update( $tablename, array( 'user_login' => $user_login ), array( 'ID' => $user_id ) );
+        } else {
+            $user = get_user_by( 'email', $user_email);
+            $user_id = $user->ID;
+
+            wp_set_password( $user_pass, $user_id );
+            update_user_meta( $user_id, 'verification_code', $user_pass);
+        }
+
+        $array_data = array();
+        $array_data['email'] =  $user_email;
+        $array_data['vcode'] = get_field('verification_code', 'user_' . $user_id);
+
+
+
+        $userdata = get_userdata($user_id);
+        $blogname = wp_specialchars_decode(get_option('blogname'), ENT_QUOTES);
+        $vcode = get_field('verification_code', 'user_' .$user_id);
+
+        //$message = sprintf(__('Username: %s'), $userdata -> user_email)."\r\n";
+        $message = sprintf(__('Verification code: %s'), $vcode)."\r\n";
+
+        wp_mail($userdata ->user_email, sprintf(__('[%s] Your Verification code'), $blogname), $message);
+
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success'
+        ] );
+
+        return set_status(200);
+        //return $response;
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'error'
+        ] );
+    }
 
 
 }
@@ -686,8 +761,33 @@ function checkout($request) {
 
 
         // Required
+
+        //get home
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+        $noRumah = '';
+        $no_Rumah = '';
+        foreach ( $posts as $post ) {
+            $noRumah .= str_replace("-", "",  $post->post_title);
+            $no_Rumah .= $post->post_title;
+
+        }
+
+        $orderID = 'INV'.$userId.'IPL70'.$noRumah;
         $transaction_details = array(
-            'order_id' => 'order-ipl70-'.time(),
+            'order_id' => $orderID.time(),
             'gross_amount' => $request->get_params()['price'], // no decimal allowed for creditcard
         );
 
@@ -708,7 +808,7 @@ function checkout($request) {
         $billing_address = array(
             'first_name'    => $user->data->display_name,
             'last_name'     => "",
-            'address'       => get_field('address', 'user_' . $userId )->post_title,
+            'address'       => $no_Rumah,
             //'city'          => "Sukabumi",
             //'postal_code'   => "143115",
             'phone'         => get_field('phone_number', 'user_' . $userId ),
@@ -732,8 +832,9 @@ function checkout($request) {
             'transaction_details' => $transaction_details,
             'customer_details' => $customer_details,
             'item_details' => $item_details,
-            'custom_field1' => 'KET: '.$request->get_params()['desc'],
-            'custom_field2' => 'NOTES: '.$request->get_params()['notes'],
+            'custom_field1' => $request->get_params()['desc'],
+            'custom_field2' => $request->get_params()['notes'],
+            'custom_field3' => $request->get_params()['qty'], // jumlah bulan bayar
         );
 
         $snapToken = Midtrans\Snap::getSnapToken($transaction);
@@ -756,7 +857,7 @@ function checkout($request) {
 }
 
 function notification($request) {
-    $currentuserid_fromjwt = get_current_user_id();
+    //$currentuserid_fromjwt = get_current_user_id();
 
     $notif = new Midtrans\Notification();
 
@@ -765,42 +866,279 @@ function notification($request) {
     $order_id = $notif->order_id;
     $fraud = $notif->fraud_status;
 
-    $message = 'ok';
-    if ($transaction == 'capture') {
-        // For credit card transaction, we need to check whether transaction is challenge by FDS or not
-        if ($type == 'credit_card') {
-            if ($fraud == 'challenge') {
-                // TODO set payment status in merchant's database to 'Challenge by FDS'
-                // TODO merchant should decide whether this transaction is authorized or not in MAP
-                $message = "Transaction order_id: " . $order_id ." is challenged by FDS";
-            } else {
-                // TODO set payment status in merchant's database to 'Success'
-                $message = "Transaction order_id: " . $order_id ." successfully captured using " . $type;
+    //$string = 'INV5IPL70E3101664547996';
+    $string = explode("IPL70", $order_id );
+    $ID = substr($string[0], 3);
+    //echo $string[0];    // will display This is a simple sting
+
+    if ($ID != 0) {
+        $user = get_user_by( 'id', $ID);
+        $userId = $user->ID;
+
+
+        // Required
+
+        //get home
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+        $noRumah = '';
+        foreach ( $posts as $post ) {
+            $idrm =  $post->ID;
+            $noRumah .= str_replace("-", "",  $post->post_title);
+        }
+
+
+        $message = 'ok';
+        if ($transaction == 'capture') {
+            // For credit card transaction, we need to check whether transaction is challenge by FDS or not
+            if ($type == 'credit_card') {
+                if ($fraud == 'challenge') {
+                    // TODO set payment status in merchant's database to 'Challenge by FDS'
+                    // TODO merchant should decide whether this transaction is authorized or not in MAP
+                    $message = "Transaction order_id: " . $order_id ." is challenged by FDS";
+                } else {
+                    // TODO set payment status in merchant's database to 'Success'
+                    $message = "Transaction order_id: " . $order_id ." successfully captured using " . $type;
+                }
+            }
+        } elseif ($transaction == 'settlement') {
+            // TODO set payment status in merchant's database to 'Settlement'
+            $message = "Transaction order_id: " . $order_id ." successfully transfered using " . $type;
+        } elseif ($transaction == 'pending') {
+            // TODO set payment status in merchant's database to 'Pending'
+            $message = "Waiting customer to finish transaction order_id: " . $order_id . " using " . $type;
+        } elseif ($transaction == 'deny') {
+            // TODO set payment status in merchant's database to 'Denied'
+            $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is denied.";
+        } elseif ($transaction == 'expire') {
+            // TODO set payment status in merchant's database to 'expire'
+            $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is expired.";
+        } elseif ($transaction == 'cancel') {
+            // TODO set payment status in merchant's database to 'Denied'
+            $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is canceled.";
+        }
+
+
+
+        if ($notif->va_numbers) {
+            $bank ='';
+            $va_number ='';
+            foreach ($notif->va_numbers as $val) {
+                $bank .= $val->bank;
+                $va_number .= $val->va_number;
             }
         }
-    } elseif ($transaction == 'settlement') {
-        // TODO set payment status in merchant's database to 'Settlement'
-        $message = "Transaction order_id: " . $order_id ." successfully transfered using " . $type;
-    } elseif ($transaction == 'pending') {
-        // TODO set payment status in merchant's database to 'Pending'
-        $message = "Waiting customer to finish transaction order_id: " . $order_id . " using " . $type;
-    } elseif ($transaction == 'deny') {
-        // TODO set payment status in merchant's database to 'Denied'
-        $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is denied.";
-    } elseif ($transaction == 'expire') {
-        // TODO set payment status in merchant's database to 'expire'
-        $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is expired.";
-    } elseif ($transaction == 'cancel') {
-        // TODO set payment status in merchant's database to 'Denied'
-        $message = "Payment using " . $type . " for transaction order_id: " . $order_id . " is canceled.";
-    }
 
-    return rest_ensure_response( [
-        'status' => true,
-        'message'   => $message,
-        // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
-        //'snapToken' => $snapToken,
-    ] );
+
+        $check_title = get_page_by_title($order_id, 'OBJECT', 'transaksi');
+
+        if (empty($check_title) ) {
+            $new_post = array(
+                'post_title' => $order_id,
+                //'post_content' => $transaction,
+                'post_status' => 'publish',
+                'post_date' => date('Y-m-d H:i:s'),
+                //'post_author' => $user_ID,
+                'post_type' => 'transaksi',
+                //'post_category' => array(0)
+            );
+
+            $post_id = wp_insert_post($new_post);
+
+            update_field('data_transaksi', array('custom_field1'=>$notif->custom_field1), $post_id);
+            update_field('data_transaksi', array('custom_field2'=>$notif->custom_field2), $post_id);
+            update_field('data_transaksi', array('order_id'=>$notif->order_id), $post_id);
+            update_field('data_transaksi', array('transaction_id'=>$notif->transaction_id), $post_id);
+            update_field('data_transaksi', array('transaction_time'=>$notif->transaction_time), $post_id);
+            update_field('data_transaksi', array('transaction_status'=>$notif->transaction_status), $post_id);
+            update_field('data_transaksi', array('payment_type'=>$notif->payment_type), $post_id);
+            update_field('data_transaksi', array('gross_amount'=>$notif->gross_amount), $post_id);
+            update_field('data_transaksi', array('status_message'=>$notif->status_message), $post_id);
+            update_field('data_transaksi', array('payment_status'=>$message), $post_id);
+
+            //set rumah dan user
+            update_field( 'rumah_trx', $idrm, $post_id );
+            update_field( 'user_trx', $userId, $post_id );
+            update_field( 'jumlah_bayar', $notif->custom_field3, $post_id );
+
+            if ($type == 'bank_transfer') {
+                update_field('data_transaksi', array('bank'=>$bank), $post_id);
+                update_field('data_transaksi', array('va_number'=>$va_number), $post_id);
+            }
+
+
+
+        } else {
+            $new_post = array(
+                'ID' =>  $check_title->ID,
+                'post_title' => $order_id,
+                //'post_content' => $transaction,
+                'post_status' => 'publish',
+                'post_date' => date('Y-m-d H:i:s'),
+                //'post_author' => $user_ID,
+                'post_type' => 'transaksi',
+                //'post_category' => array(0)
+            );
+
+            $post_id = wp_update_post($new_post);
+
+
+            update_field('data_transaksi', array('custom_field1'=>$notif->custom_field1), $post_id);
+            update_field('data_transaksi', array('custom_field2'=>$notif->custom_field2), $post_id);
+            update_field('data_transaksi', array('order_id'=>$notif->order_id), $post_id);
+            update_field('data_transaksi', array('transaction_id'=>$notif->transaction_id), $post_id);
+            update_field('data_transaksi', array('transaction_time'=>$notif->transaction_time), $post_id);
+            update_field('data_transaksi', array('transaction_status'=>$notif->transaction_status), $post_id);
+            update_field('data_transaksi', array('payment_type'=>$notif->payment_type), $post_id);
+            update_field('data_transaksi', array('gross_amount'=>$notif->gross_amount), $post_id);
+            update_field('data_transaksi', array('status_message'=>$notif->status_message), $post_id);
+            update_field('data_transaksi', array('payment_status'=>$message), $post_id);
+
+            update_field( 'rumah_trx', $idrm, $post_id );
+            update_field( 'user_trx', $userId, $post_id );
+            update_field( 'jumlah_bayar', $notif->custom_field3, $post_id );
+
+            if ($type == 'bank_transfer') {
+                update_field('data_transaksi', array('bank'=>$bank), $post_id);
+                update_field('data_transaksi', array('va_number'=>$va_number), $post_id);
+            }
+
+        }
+
+
+        if($transaction == 'settlement') {
+            $jumlah = get_field('jumlah_bayar', $check_title->ID);
+
+            $iplTerbaru = get_field('status_ipl',$idrm)['ipl_terbaru'];
+            $dlast = strtotime($iplTerbaru);
+            $datelast = date('F Y', $dlast);
+
+            $iplTerbaruBayar = date('F Y', strtotime('+'.$jumlah.' months', strtotime($datelast)));
+            $dlast2 = strtotime($iplTerbaruBayar);
+            $datelast2 = date('F Y', $dlast2);
+
+            if ($iplTerbaruBayar) {
+
+
+                $thisMouth = date('F Y');
+
+                //list bulan belum bayar
+                $start    = new DateTime($datelast);
+                $start->modify('first day of next month');
+                $end      = new DateTime($datelast2);
+                $end->modify('first day of next month');
+                $interval = new DateInterval('P1M');
+                $period   = new DatePeriod($start, $interval, $end);
+
+                $per = [];
+                $i= 0;
+                foreach ($period as $dt) {
+                    $i++;
+                    //echo $dt->format("Y-m") . "<br>\n";
+                    array_push($per, $dt->format("F Y"));
+                }
+
+                $listbln = implode("\n",$per);
+                update_field( 'bulan_yang_dibayar', $listbln, $post_id );
+
+
+                /**
+                 * set susscess bayar ke rumah
+                 */
+
+                $s = $iplTerbaruBayar;
+                $d = strtotime($s);
+                $date = date('F Y', $d);
+
+                update_field('status_ipl', array('ipl_terbaru'=>$date), $idrm);
+
+                //iplbaru
+                $iplbaruarr = explode(", ", $listbln);
+
+                //list ipl
+                $ipl = get_field('status_ipl', $idrm)['ipl_terbayar'];
+                $iplarr = explode("<br />",$ipl);
+
+
+                $ipltemp = [];
+                foreach ($iplarr as $val) {
+                    array_push($ipltemp, $val);
+                }
+
+                $iplupdate = [];
+                foreach ($iplbaruarr as $val) {
+                    array_push($iplupdate, $val);
+                    array_push($ipltemp, $val);
+                }
+
+                //masukan ipl baru ke list ipl
+                foreach ($iplarr as $val) {
+                    array_push($iplupdate, $val);
+                }
+
+                $value = implode("\n",$ipltemp);
+                update_field('status_ipl', array('ipl_terbayar'=>$value), $idrm);
+
+                //update fild rumah
+
+                $iplbaru = get_field('status_ipl',$idrm)['ipl_terbaru'];
+                $dlast = strtotime($iplbaru);
+                $datelast = date('F Y', $dlast);
+
+
+                $thisMouth = date('F Y');
+
+                //list bulan belum bayar
+                $start    = new DateTime($datelast);
+                $start->modify('first day of next month');
+                $end      = new DateTime($thisMouth);
+                $end->modify('first day of next month');
+                $interval = new DateInterval('P1M');
+                $period   = new DatePeriod($start, $interval, $end);
+
+                $per = [];
+                $i= 0;
+                foreach ($period as $dt) {
+                    $i++;
+                    //echo $dt->format("Y-m") . "<br>\n";
+                    array_push($per, $dt->format("F Y"));
+                }
+
+                $listbln = implode("\n",$per);
+                update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $idrm);
+
+                //num ipl lum bayar
+                update_field('status_ipl', array('jumlah_ipl_belum_bayar'=>$i), $idrm);
+            }
+        }
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   =>$message,
+            // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
+            //'snapToken' => $snapToken,
+        ] );
+
+
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Not found'
+        ] );
+    }
 
 }
 
