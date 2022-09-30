@@ -96,6 +96,12 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1', 'status',array(
+            'methods'  => 'GET',
+            'callback' => 'status',
+            'permission_callback' => '__return_true',
+        ));
+
     }
 );
 
@@ -476,7 +482,7 @@ function login_user($request)
             'login' => 1,
             'id' => $user->ID,
             'nonce' => $nonce,
-            'resident' => get_field('address', 'user_' . $user->ID ),
+            'resident' => get_field('address', 'user_' . $user->ID )->post_title,
             'token' => $response['token'],
             'is_user_logged_in' => $current_user,
             'message'   => 'You have successfully logged in'
@@ -824,6 +830,11 @@ function checkout($request) {
             'billing_address'  => $billing_address
         );
 
+        $expiry = array(
+            'unit' => 'minutes',
+            'duration' => 120
+        );
+
         // Optional, remove this to display all available payment methods
         //$enable_payments = array('credit_card','cimb_clicks','mandiri_clickpay','echannel');
 
@@ -835,6 +846,7 @@ function checkout($request) {
             'custom_field1' => $request->get_params()['desc'],
             'custom_field2' => $request->get_params()['notes'],
             'custom_field3' => $request->get_params()['qty'], // jumlah bulan bayar
+            'expiry'        => $expiry,
         );
 
         $snapToken = Midtrans\Snap::getSnapToken($transaction);
@@ -1137,6 +1149,42 @@ function notification($request) {
         return rest_ensure_response( [
             'status' => false,
             'message'   => 'Not found'
+        ] );
+    }
+
+}
+
+function status($request) {
+    $orderID = $request["orderID"];
+    $curl = curl_init();
+
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => 'https://api.sandbox.midtrans.com/v2/'.$orderID.'/status',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_ENCODING => '',
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 0,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_CUSTOMREQUEST => 'GET',
+        CURLOPT_HTTPHEADER => array(
+            'Accept: application/json',
+            'Content-Type: application/json',
+            'Authorization: U0ItTWlkLXNlcnZlci1kQV9HakpRNWc2VnV3dVdKUXZzbVJsQXQ6'
+        ),
+    ));
+
+    $response = curl_exec($curl);
+    $response = json_decode($response);
+
+    curl_close($curl);
+    //return $response;
+
+    if ($response) {
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            'data' => $response,
         ] );
     }
 
