@@ -90,3 +90,80 @@ function update_homeID($post_id) {
     update_field('status_ipl', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
 
 }
+
+//autoupdate data IPL
+
+function run_update_ipl() {
+    $args = array(
+    'post_type' => 'rumah',
+    'posts_per_page' => -1,
+    'post_status' => 'publish',
+
+    );
+
+    $posts = get_posts($args);
+
+    //now check meta and update taxonomy for every post
+    foreach ( $posts as $post ) {
+        $post_id = $post->ID;
+        $iplbaru = get_field('status_ipl',$post_id)['ipl_terbaru'];
+        $dlast = strtotime($iplbaru);
+        $datelast = date('F Y', $dlast);
+
+        $thisMouth = date('F Y');
+
+        //list bulan belum bayar
+        $start    = new DateTime($datelast);
+        $start->modify('first day of next month');
+        $end      = new DateTime($thisMouth);
+        $end->modify('first day of next month');
+        $interval = new DateInterval('P1M');
+        $period   = new DatePeriod($start, $interval, $end);
+
+        $thisMouth = date('F Y');
+
+        //list bulan belum bayar
+        $start    = new DateTime($datelast);
+        $start->modify('first day of next month');
+        $end      = new DateTime($thisMouth);
+        $end->modify('first day of next month');
+        $interval = new DateInterval('P1M');
+        $period   = new DatePeriod($start, $interval, $end);
+
+        $per = [];
+        $i= 0;
+        foreach ($period as $dt) {
+            $i++;
+            //echo $dt->format("Y-m") . "<br>\n";
+            array_push($per, $dt->format("F Y"));
+        }
+
+        $listbln = implode("\n",$per);
+        update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $post_id);
+
+        //num ipl lum bayar
+        update_field('status_ipl', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
+    }
+}
+
+add_action ('cronjobIPL', 'run_update_ipl');
+
+// add custom interval
+function cron_add_minute( $schedules ) {
+    // Adds once every minute to the existing schedules.
+    $schedules['everyminute'] = array(
+        'interval' => 60,
+        'display' => __( 'Once Every Minute' )
+    );
+    return $schedules;
+}
+add_filter( 'cron_schedules', 'cron_add_minute' );
+
+// create a scheduled event (if it does not exist already)
+function cronstarter_activation() {
+    if( !wp_next_scheduled( 'cronjobIPL' ) ) {
+        wp_schedule_event( time(), 'everyminute', 'cronjobIPL' );
+    }
+}
+// and make sure it's called whenever WordPress loads
+add_action('init', 'cronstarter_activation');

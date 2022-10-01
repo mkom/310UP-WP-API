@@ -482,7 +482,7 @@ function login_user($request)
         if ($resident == false) {
             $resident = null;
         } else {
-            $resident = get_field('address', 'user_' . $user->ID )->post_title;
+            $resident = get_field('address', 'user_' . $user->ID );
         }
 
         return rest_ensure_response( [
