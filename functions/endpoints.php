@@ -102,6 +102,12 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1', 'transaction',array(
+            'methods'  => 'GET',
+            'callback' => 'get_transaction',
+            'permission_callback' => '__return_true',
+        ));
+
     }
 );
 
@@ -764,8 +770,6 @@ function get_all() {
     }
 
 }
-
-
 function checkout($request) {
     $currentuserid_fromjwt = get_current_user_id();
 
@@ -1193,6 +1197,76 @@ function status($request) {
             'status' => true,
             'message'   => 'success',
             'data' => $response,
+        ] );
+    }
+
+}
+
+function get_transaction() {
+
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $args = array(
+            'post_type' => 'transaksi',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => 'failed'
+                //'data' => '',
+            ] );
+        } else {
+            foreach ( $posts as $post ) {
+                $ins_data[] = array(  // you can ad anything here and as many as you want
+                    'id' => $post->ID,
+                    'title' => $post->post_title,
+                    'user' =>  get_field( 'data_transaksi', $post->ID )['user_trx'],
+                    'home' => get_field( 'data_transaksi', $post->ID )['rumah_trx'],
+                    'count' =>  get_field( 'data_transaksi', $post->ID )['rumah_trx'],
+                    'description' =>  get_field( 'data_transaksi', $post->ID )['custom_field1'],
+                    'notes' =>  get_field( 'data_transaksi', $post->ID )['custom_field2'],
+                    'transaction_id' =>  get_field( 'data_transaksi', $post->ID )['transaction_id'],
+                    'transaction_time' =>  get_field( 'data_transaksi', $post->ID )['transaction_time'],
+                    'transaction_status' =>  get_field( 'data_transaksi', $post->ID )['transaction_status'],
+                    'payment_type' =>  get_field( 'data_transaksi', $post->ID )['payment_type'],
+                    'bank' =>  get_field( 'data_transaksi', $post->ID )['bank'],
+                    'va_number' =>  get_field( 'data_transaksi', $post->ID )['va_number'],
+                    'gross_amount' =>  get_field( 'data_transaksi', $post->ID )['gross_amount'],
+                    'settlement_time' =>  get_field( 'data_transaksi', $post->ID )['settlement_time'],
+                    'status_message' =>  get_field( 'data_transaksi', $post->ID )['status_message'],
+                    'payment_status' => get_field( 'data_transaksi', $post->ID )['payment_status'],
+
+                );
+            }
+
+            return rest_ensure_response( [
+                'status' => true,
+                'message'   => 'success',
+                'data' => $ins_data,
+            ] );
+        }
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
         ] );
     }
 
