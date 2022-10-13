@@ -3,6 +3,8 @@
 //generate IDrumah
 add_action('acf/save_post', 'update_homeID');
 function update_homeID($post_id) {
+
+    //set kode rumah
     $characters ='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     $length = 3;
     $key_rumah = '';
@@ -20,6 +22,15 @@ function update_homeID($post_id) {
         }
     }
 
+    //set kode iuran
+
+    $iuranID = get_field('field_6340883b5484c', $post_id);
+    if (get_post_type($post_id) =='iuran') {
+        if (empty($iuranID)) {
+            update_field('field_6340883b5484c',$key_start.'IU'.$key_end , $post_id);
+        }
+    }
+
     ////////////////////
 
     $s = 'December 2022';
@@ -27,7 +38,7 @@ function update_homeID($post_id) {
    // $date = date('F Y', $d);
     $date = '';
 
-
+    // function untuk ipl terbayar
     if ($date) {
         //update ipl terbaru
         update_field('status_ipl', array('ipl_terbaru'=>$date), $post_id);
@@ -60,7 +71,17 @@ function update_homeID($post_id) {
         update_field('status_ipl', array('ipl_terbayar'=>$value), $post_id);
     }
 
-    $iplbaru = get_field('status_ipl',$post_id)['ipl_terbaru'];
+    // fungtion update ipl
+    $lastIPLB = get_field('status_iuran',$post_id)['bulan'];
+    $lastIPLT = get_field('status_iuran',$post_id)['tahun'];
+    $lastIPL = $lastIPLB.' '.$lastIPLT;
+    $dlast = strtotime($lastIPL);
+    $datelast = date('F Y', $dlast);
+
+    //update ipl terbaru
+    //update_field('status_ipl', array('ipl_terbaru'=>$datelast), $post_id);
+
+    $iplbaru = $lastIPL;
     $dlast = strtotime($iplbaru);
     $datelast = date('F Y', $dlast);
 
@@ -80,22 +101,79 @@ function update_homeID($post_id) {
     foreach ($period as $dt) {
         $i++;
         //echo $dt->format("Y-m") . "<br>\n";
-        array_push($per, $dt->format("F Y"));
+        array_push($per, $dt->format("F | Y"));
+
     }
 
     $listbln = implode("\n",$per);
+
     update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $post_id);
 
     //num ipl lum bayar
-    update_field('status_ipl', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
+    update_field('status_iuran', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
 
 }
 
 //autoupdate data IPL
 
+//function run_update_ipl() {
+//
+//
+//    $args = array(
+//    'post_type' => 'rumah',
+//    'posts_per_page' => -1,
+//    'post_status' => 'publish',
+//
+//    );
+//
+//    $posts = get_posts($args);
+//
+//    //now check meta and update taxonomy for every post
+//    foreach ( $posts as $post ) {
+//        $post_id = $post->ID;
+//        $iplbaru = get_field('status_ipl',$post_id)['ipl_terbaru'];
+//        $dlast = strtotime($iplbaru);
+//        $datelast = date('F Y', $dlast);
+//
+//        $thisMouth = date('F Y');
+//
+//        //list bulan belum bayar
+//        $start    = new DateTime($datelast);
+//        $start->modify('first day of next month');
+//        $end      = new DateTime($thisMouth);
+//        $end->modify('first day of next month');
+//        $interval = new DateInterval('P1M');
+//        $period   = new DatePeriod($start, $interval, $end);
+//
+//        $thisMouth = date('F Y');
+//
+//        //list bulan belum bayar
+//        $start    = new DateTime($datelast);
+//        $start->modify('first day of next month');
+//        $end      = new DateTime($thisMouth);
+//        $end->modify('first day of next month');
+//        $interval = new DateInterval('P1M');
+//        $period   = new DatePeriod($start, $interval, $end);
+//
+//        $per = [];
+//        $i= 0;
+//        foreach ($period as $dt) {
+//            $i++;
+//            //echo $dt->format("Y-m") . "<br>\n";
+//            array_push($per, $dt->format("F Y"));
+//        }
+//
+//        $listbln = implode("\n",$per);
+//        update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $post_id);
+//
+//        //num ipl lum bayar
+//        update_field('status_ipl', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
+//    }
+//}
+
 function run_update_ipl() {
     $args = array(
-    'post_type' => 'rumah',
+    'post_type' => 'user-iuran',
     'posts_per_page' => -1,
     'post_status' => 'publish',
 
@@ -106,8 +184,12 @@ function run_update_ipl() {
     //now check meta and update taxonomy for every post
     foreach ( $posts as $post ) {
         $post_id = $post->ID;
-        $iplbaru = get_field('status_ipl',$post_id)['ipl_terbaru'];
-        $dlast = strtotime($iplbaru);
+
+        $lastIPLB = get_field('status_iuran',$post_id)['bulan'];
+        $lastIPLT = get_field('status_iuran',$post_id)['tahun'];
+        $lastIPL = $lastIPLB.' '.$lastIPLT;
+
+        $dlast = strtotime($lastIPL);
         $datelast = date('F Y', $dlast);
 
         $thisMouth = date('F Y');
@@ -135,14 +217,14 @@ function run_update_ipl() {
         foreach ($period as $dt) {
             $i++;
             //echo $dt->format("Y-m") . "<br>\n";
-            array_push($per, $dt->format("F Y"));
+            array_push($per, $dt->format("F | Y"));
         }
 
         $listbln = implode("\n",$per);
         update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $post_id);
 
         //num ipl lum bayar
-        update_field('status_ipl', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
+        update_field('status_iuran', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
     }
 }
 

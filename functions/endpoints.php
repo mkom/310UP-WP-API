@@ -16,6 +16,7 @@ Midtrans\Config::$isSanitized = true;
 // Set 3DS transaction for credit card to true
 Midtrans\Config::$is3ds = true;
 
+date_default_timezone_set('Asia/Jakarta');
 
 
 /**
@@ -72,15 +73,46 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1', 'iuran_code',array(
+            'methods'  => 'POST',
+            'callback' => 'iuran_code',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1', 'join_iuran',array(
+            'methods'  => 'POST',
+            'callback' => 'join_iuran',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1', 'iuran',array(
+            'methods'  => 'GET',
+            'callback' => 'iuran',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1', 'user_iuran',array(
+            'methods'  => 'GET',
+            'callback' => 'user_iuran',
+            'permission_callback' => '__return_true',
+        ));
+
+
         register_rest_route( 'cs/v1', 'verify_resident',array(
             'methods'  => 'POST',
             'callback' => 'verify_resident',
             'permission_callback' => '__return_true',
         ));
 
-        register_rest_route( 'cs/v1', 'all_data',array(
+        register_rest_route( 'cs/v1', 'set_profile',array(
+            'methods'  => 'POST',
+            'callback' => 'set_profile',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1', 'user_profile',array(
             'methods'  => 'GET',
-            'callback' => 'get_all',
+            'callback' => 'user_profile',
             'permission_callback' => '__return_true',
         ));
 
@@ -105,6 +137,35 @@ add_action(
         register_rest_route( 'cs/v1', 'transaction',array(
             'methods'  => 'GET',
             'callback' => 'get_transaction',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1/moota/', 'checkout',array(
+            'methods'  => 'POST',
+            'callback' => 'checkout_moota',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1/moota/', 'transaction/(?P<stringvar>[^/]+)',array(
+            'methods'  => 'GET',
+            'callback' => 'transaction_moota',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1/moota/', 'transaction',array(
+            'methods'  => 'GET',
+            'callback' => 'transaction_moota',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1', 'tester',array(
+            'methods'  => 'GET',
+            'callback' => 'tester',
+            'permission_callback' => '__return_true',
+        ));
+        register_rest_route( 'cs/v1/moota/', 'callback',array(
+            'methods'  => 'POST',
+            'callback' => 'moota_callback',
             'permission_callback' => '__return_true',
         ));
 
@@ -701,7 +762,132 @@ function verify_resident($request) {
 
 }
 
-function get_all() {
+function set_profile($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $nama = $request ["nama"];
+        $phone = $request ["noWa"];
+        $norumah = $request ["norumah"];
+        $status = $request ["status"];
+        $bulan = $request ["bulan"];
+        $tahun = $request ["tahun"];
+        $blok = $request ["blok"];
+
+
+        //update user
+        wp_update_user([
+            'ID' => $userId, // this is the ID of the user you want to update.
+            'display_name' => $nama,
+        ]);
+
+        update_user_meta( $userId, 'name_user',  $nama);
+        update_user_meta( $userId, 'phone_number',  $phone);
+        update_user_meta( $userId, 'no_rumah',  $norumah);
+        update_user_meta( $userId, 'phone_number',  $phone);
+        update_user_meta( $userId, 'status_kepemilikan',  $status);
+        update_user_meta( $userId, 'bulan',  $bulan);
+        update_user_meta( $userId, 'tahun',  $tahun);
+
+
+        //create rumah
+        $check_title = get_page_by_title($norumah, 'OBJECT', 'rumah');
+
+        $new_post = array(
+            'post_title' => $norumah,
+            'post_status' => 'publish',
+            'post_date' => date('Y-m-d H:i:s'),
+            //'post_author' => $userId,
+            'post_type' => 'rumah',
+        );
+
+        if(empty($check_title)) {
+            $post_id = wp_insert_post($new_post);
+
+        } else {
+            $args = array(
+                'post_type' => 'rumah',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                's' => $norumah,
+            );
+            $posts = get_posts($args);
+
+            foreach ( $posts as $post ) {
+                $post_id = $post->ID;
+
+            }
+        }
+        //update user address
+        update_user_meta( $userId, 'address',  $post_id);
+        $current_user = get_field( 'field_63270532649ec', $post_id );
+        if($current_user) {
+            array_push($current_user, $userId);
+        } else {
+            $current_user = $userId;
+        }
+
+        // set rumah
+        update_field( 'field_63270532649ec', $current_user, $post_id );
+
+        $taxonomy = 'taxblok';
+        $termObj  = get_term_by( 'name', $blok, $taxonomy);
+        $term_id = $termObj->term_id;
+        wp_set_object_terms($post_id, intval( $term_id ), $taxonomy);
+
+        //create user profile
+        $userProfileTitle = 'user'.$userId.'-'.$nama;
+        $userProfile= get_page_by_title($userProfileTitle, 'OBJECT', 'user-profile');
+
+        $new_post_profile = array(
+            'post_title' => $userProfileTitle,
+            'post_status' => 'publish',
+            'post_date' => date('Y-m-d H:i:s'),
+            //'post_author' => $userId,
+            'post_type' => 'user-profile',
+        );
+
+
+        if(empty($userProfile)) {
+            $profile_id = wp_insert_post($new_post_profile);
+        } else {
+            $args = array(
+                'post_type' => 'user-profile',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                's' => $userProfileTitle,
+            );
+            $posts = get_posts($args);
+
+            foreach ( $posts as $post ) {
+                $profile_id = $post->ID;
+
+            }
+        }
+
+        update_field( 'field_633c73ae0f44f', $userId, $profile_id ); // link user
+
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            //'data' => $check_title,
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+
+}
+
+function user_profile() {
     $currentuserid_fromjwt = get_current_user_id();
 
     if ($currentuserid_fromjwt != 0) {
@@ -710,6 +896,23 @@ function get_all() {
         $ins_data = array();
 
         $args = array(
+            'post_type' => 'user-profile',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user_full',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+
+        $rmid = '';
+
+        $argsrm = array(
             'post_type' => 'rumah',
             'posts_per_page' => 1,
             'post_status' => 'publish',
@@ -722,7 +925,72 @@ function get_all() {
             )
         );
 
-        $posts = get_posts($args);
+        $postrm = get_posts($argsrm);
+
+        foreach ( $postrm as $rm ) {
+            $rmid = $rm->ID;
+        }
+
+        $iuranUser = array();
+        $argsiu = array(
+            'post_type' => 'user-iuran',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'creator',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $postsiu = get_posts($argsiu);
+
+        foreach ( $postsiu as $iu ) {
+            $lastIPLB = get_field('status_iuran',$iu->ID)['bulan'];
+            $lastIPLT = get_field('status_iuran',$iu->ID)['tahun'];
+
+            $lastIPL = $lastIPLB.' '.$lastIPLT;
+            $getIuran = get_field('iuran',$iu->ID);
+            $nominal = '';
+
+            $argsmiu = array(
+                'post_type' => 'iuran',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                'post__in' => [ $getIuran->ID ]
+            );
+
+            $postmiu = get_posts($argsmiu);
+            $iuranCode = '';
+            foreach ( $postmiu as $miu ) {
+                $nominal = get_field( 'nominal', $miu->ID );
+                $iuranCode = get_field( 'kode_iuran', $miu->ID );
+            }
+
+
+            $iuranUser[] = array(  // you can ad anything here and as many as you want
+                'iuran_link_ID' => $iu->ID,
+                'iuranID' => $getIuran->ID,
+                'iuran_name' => $getIuran->post_title,
+                'iuran_code' => $iuranCode,
+                'nominal'   =>$nominal,
+                'last_ipl' => $lastIPL,
+                'count_ipl' => get_field( 'status_iuran', $iu->ID )['jumlah_ipl_belum_bayar'],
+                'bill_ipl' => str_replace("\n", ", ",  get_field( 'status_ipl', $iu->ID )['ipl_belum_bayar']),
+
+            );
+        }
+
+
+        $taxonomy = 'taxblok';
+        $terms = get_the_terms( $rmid ,$taxonomy );
+        if ( !empty( $terms ) ){
+            // get the first term
+            $term = array_shift( $terms );
+            $blok =  $term->name;
+        }
 
         if ( empty( $posts ) ) {
             return rest_ensure_response( [
@@ -732,26 +1000,24 @@ function get_all() {
             ] );
         } else {
             foreach ( $posts as $post ) {
-               // $idrm =  $post->ID;
-                $iplbaru = get_field('status_ipl',$post->ID)['ipl_terbaru'];
-                $dlast = strtotime($iplbaru);
-                $datelast = date('F Y', $dlast);
-                setlocale(LC_CTYPE, 'Indonesian');
-                setlocale(LC_TIME, 'Indonesian');
-                $month_name = strftime('%B %Y', $dlast);
+                // $idrm =  $post->ID;
+//                $iplbaru = get_field('status_ipl',$post->ID)['ipl_terbaru'];
+//                $dlast = strtotime($iplbaru);
+//                $datelast = date('F Y', $dlast);
+//                setlocale(LC_CTYPE, 'Indonesian');
+//                setlocale(LC_TIME, 'Indonesian');
+//                $month_name = strftime('%B %Y', $dlast);
+
+
                 $ins_data[] = array(  // you can ad anything here and as many as you want
-                    'ID_home' => $post->ID,
-                    'home' => $post->post_title,
-                    'ID_unique' => get_field( 'id_rumah', $post->ID ),
-                    'last_ipl' => $iplbaru,
-                    'count_ipl' => get_field( 'status_ipl', $post->ID )['jumlah_ipl_belum_bayar'],
-                    //'bill_ipl' => get_field( 'status_ipl', $post->ID )['ipl_belum_bayar'],
-                    'bill_ipl' => str_replace("\n", ", ",  get_field( 'status_ipl', $post->ID )['ipl_belum_bayar']),
-                    'profile' => array(
-                        'name' => $user->data->display_name,
-                        'email' => $user->data->user_email,
-                        'phone' => get_field('phone_number', 'user_' . $userId )
-                    )
+                    'name' => $user->data->display_name,
+                    'email' => $user->data->user_email,
+                    'rumah' => get_field('no_rumah', 'user_' . $userId ),
+                    'blok' => $blok,
+                    'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
+                    'menetap' => get_field('bulan', 'user_' . $userId ).' '.get_field('tahun', 'user_' . $userId ),
+                    'link_to_profile' => $post->ID,
+                    'iuran_yang_diikuti' => $iuranUser,
                 );
             }
 
@@ -770,6 +1036,7 @@ function get_all() {
     }
 
 }
+
 function checkout($request) {
     $currentuserid_fromjwt = get_current_user_id();
 
@@ -1002,8 +1269,6 @@ function notification($request) {
                 update_field('data_transaksi', array('va_number'=>$va_number), $post_id);
             }
 
-
-
         } else {
             $new_post = array(
                 'ID' =>  $check_title->ID,
@@ -1054,7 +1319,6 @@ function notification($request) {
             $datelast2 = date('F Y', $dlast2);
 
             if ($iplTerbaruBayar) {
-
 
                 $thisMouth = date('F Y');
 
@@ -1272,3 +1536,610 @@ function get_transaction() {
 
 }
 
+function iuran_code($request) {
+    $codeiu = $request ["codeiu"];
+
+    $args = array(
+        'post_type' => 'iuran',
+        'posts_per_page' => 1,
+        'post_status' => 'publish',
+        'meta_query' => array(
+            array(
+                'key' => 'kode_iuran',
+                'value' => $codeiu,
+                //'compare' => 'LIKE'
+            ),
+        )
+    );
+
+    $posts = get_posts($args);
+
+    if ( empty( $posts ) ) {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'data not found'
+        ] );
+    }
+    $ins_data = array();
+    $i = 0;
+
+    foreach ( $posts as $post ) {
+        $ins_data[] = array(  // you can ad anything here and as many as you want
+            'ID' => $post->ID,
+            'iuran' => $post->post_title,
+            'code_iuran' =>  get_field( 'kode_iuran', $post->ID),
+            'nominal' => get_field( 'nominal', $post->ID),
+            'status' => get_field( 'status_iuran', $post->ID),
+            'description' => get_field( 'description', $post->ID),
+        );
+        $i++;
+    }
+
+
+    // Returned Data
+    return rest_ensure_response( [
+        'status' => true,
+        'message'   => 'success',
+        'data' => $ins_data,
+    ] );
+}
+
+function join_iuran($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+
+        $code = $request ["code"];
+        $bulan = $request ["bulan"];
+        $tahun = $request ["tahun"];
+
+        //get berlaku iuran
+        $args = array(
+            'post_type' => 'iuran',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'kode_iuran',
+                    'value' => $code,
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+        $idberlakuiuran = '';
+        foreach ( $posts as $post ) {
+            $idberlakuiuran =  $post->ID;
+            $iuranName =  $post->post_title;
+        }
+
+        //awal berlaku iran
+
+        $awalberlakubulan = get_field('berlaku',$idberlakuiuran)['bulan'];
+        $awalberlakutahun = get_field('berlaku',$idberlakuiuran)['tahun'];
+
+        if($request ["bulan"]) {
+            $bulan = $request ["bulan"];
+        } else {
+            $bulan = $awalberlakubulan;
+        }
+
+        if($request ["tahun"]) {
+            $tahun = $request ["tahun"];
+        } else {
+            $tahun = $awalberlakutahun;
+        }
+
+        $iuran = $request ["iuranID"];
+        $title = 'IuranuserID'.$userId.'/'.$iuranName;
+
+        //create iuran user
+        $check_title = get_page_by_title($title, 'OBJECT', 'user-iuran');
+
+        $new_post = array(
+            'post_title' => $title,
+            'post_status' => 'publish',
+            'post_date' => date('Y-m-d H:i:s'),
+            'post_type' => 'user-iuran',
+        );
+
+        if(empty($check_title)) {
+            $post_id = wp_insert_post($new_post);
+
+        } else {
+            //$post_id = wp_update_post($new_post);
+        }
+
+        update_field( 'field_633c98ca24b58', $iuran, $post_id );// link user
+        update_field( 'creator', $userId, $post_id );// link user
+
+        //status iuran
+        update_field('field_633c97cad3c42', array('field_633c97cad7585'=>$bulan), $post_id);
+        update_field('field_633c97cad3c42', array('field_633c97cad7942'=>$tahun), $post_id);
+
+        //awal iuran
+        update_field('awal_iuran', array('bulan'=>$bulan), $post_id);
+        update_field('awal_iuran', array('tahun'=>$tahun), $post_id);
+
+
+
+        //update status iuran
+        // fungtion update ipl
+        $lastIPLB = get_field('status_iuran',$post_id)['bulan'];
+        $lastIPLT = get_field('status_iuran',$post_id)['tahun'];
+
+        if ($lastIPLB) {
+            $lastIPLB = get_field('status_iuran',$post_id)['bulan'];
+        } else {
+            $lastIPLB = $awalberlakubulan;
+        }
+
+        if ($lastIPLB) {
+            $lastIPLT = get_field('status_iuran',$post_id)['tahun'];
+        } else {
+            $lastIPLB = $awalberlakutahun;
+        }
+
+
+        $lastIPL = $lastIPLB.' '.$lastIPLT;
+        $dlast = strtotime($lastIPL);
+        $datelast = date('F Y', $dlast);
+
+        //update ipl terbaru
+        //update_field('status_ipl', array('ipl_terbaru'=>$datelast), $post_id);
+
+        $iplbaru = $lastIPL;
+        $dlast = strtotime($iplbaru);
+        $datelast = date('F Y', $dlast);
+
+
+        $thisMouth = date('F Y');
+
+        //list bulan belum bayar
+        $start    = new DateTime($datelast);
+        $start->modify('first day of next month');
+        $end      = new DateTime($thisMouth);
+        $end->modify('first day of next month');
+        $interval = new DateInterval('P1M');
+        $period   = new DatePeriod($start, $interval, $end);
+
+        $per = [];
+        $i= 0;
+        foreach ($period as $dt) {
+            $i++;
+            //echo $dt->format("Y-m") . "<br>\n";
+            array_push($per, $dt->format("F Y"));
+
+        }
+
+        $listbln = implode("\n",$per);
+
+        update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $post_id);
+
+        //num ipl lum bayar
+        update_field('status_iuran', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
+
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            //'data' => $bulan,
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
+
+function user_iuran($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+
+        $code = $request ["code"];
+
+        $argsiu = array(
+            'post_type' => 'user-iuran',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'creator',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $postsiu = get_posts($argsiu);
+
+        foreach ( $postsiu as $iu ) {
+            $lastIPLB = get_field('status_iuran', $iu->ID)['bulan'];
+            $lastIPLT = get_field('status_iuran', $iu->ID)['tahun'];
+
+            $lastIPL = $lastIPLB . ' ' . $lastIPLT;
+            $getIuran = get_field('iuran', $iu->ID);
+            $nominal = '';
+
+            $argsmiu = array(
+                'post_type' => 'iuran',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                'post__in' => [$getIuran->ID]
+            );
+
+            $postmiu = get_posts($argsmiu);
+            $iuranCode = '';
+            foreach ($postmiu as $miu) {
+                $nominal = get_field('nominal', $miu->ID);
+                $iuranCode = get_field('kode_iuran', $miu->ID);
+            }
+
+
+            $iuranUser[] = array(  // you can ad anything here and as many as you want
+                'iuran_link_ID' => $iu->ID,
+                'iuranID' => $getIuran->ID,
+                'iuran_name' => $getIuran->post_title,
+                'iuran_code' => $iuranCode,
+                'nominal' => $nominal,
+                'last_ipl' => $lastIPL,
+                'count_ipl' => get_field('status_iuran', $iu->ID)['jumlah_ipl_belum_bayar'],
+                'bill_ipl' => str_replace("\n", ", ", get_field('status_ipl', $iu->ID)['ipl_belum_bayar']),
+
+            );
+
+        };
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            'data' => $iuranUser,
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
+
+function checkout_moota($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+
+        $code = $request ["codeiu"];
+
+        // Required
+
+        //get home
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+        $noRumah = '';
+        $no_Rumah = '';
+        foreach ( $posts as $post ) {
+            $noRumah .= str_replace("-", "",  $post->post_title);
+            $no_Rumah .= $post->post_title;
+            $rumahID = $post->ID;
+
+        }
+
+
+        //get iuran
+        $argsiu = array(
+            'post_type' => 'iuran',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'kode_iuran',
+                    'value' => $code,
+                )
+            )
+        );
+
+        $postsiu = get_posts($argsiu);
+        foreach ( $postsiu as $postiu ) {
+            $iuranID =  $postiu->ID;
+            $iuransku =  str_replace(" ", "",  $postiu->post_title);
+            $iuranName =  $postiu->post_title;
+        }
+
+        $invoice = 'INV'.$iuransku.''.$userId.''.time();
+
+        $amount = intval($request["price"]);
+        //$payment_method_id ='DZ4jAJYOWAo';
+        //$type ='bca';
+        $qty = intval( $request ["qty"]);
+        $callback_url ='https://310up.ink/pivi/wp-json/cs/v1/moota/callback';
+        $description = $request ["desc"];
+        $notes = $request ["notes"];
+        $expired_date = date("Y-m-d H:i:s", strtotime("now +1 hour"));
+
+
+        //transaction
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => 'https://app.moota.co/api/v2/contract',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => '{
+                "invoice_number" : "'.$invoice.'",
+                "amount" : '.$amount.',
+                "payment_method_id" : "DZ4jAJYOWAo",
+                "type" : "bca",
+                "callback_url" : "'.$callback_url.'",
+                "expired_date" : "'.$expired_date.'",
+                "description" : "'.$description.'",
+                "increase_total_from_unique_code" : 1,
+                "customer": {
+                    "name": "'.$user->data->display_name.'",
+                    "email": "'.$user->data->user_email.'",
+                    "phone": "'.get_field('phone_number', 'user_' . $userId ).'"
+                },
+                "items":[
+                    {
+                        "name":"'.$iuranName.'",
+                        "qty":'.$qty.',
+                        "price":'.$amount.',
+                        "sku":"SKU-'.$iuranID.'",
+                        "image_url":"https://via.placeholder.com/150"
+                    }
+                ],
+                "with_unique_code" : 0,
+                "start_unique_code" : 10,
+                "end_unique_code" :20,
+                "unique_code" : 0
+            }',
+            CURLOPT_HTTPHEADER => array(
+                'Accept: application/json',
+                'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJucWllNHN3OGxsdyIsImp0aSI6Ijc1OTRiMmRkMzBhNzhjZjE5ODVkYzdiOGY1YzAzNWU0Yzc0YmE0MzYyNDViY2I5OWQxOGE5ZTAyYzgwMGE2OTBjYmFiYjBlMWE4OTljNTcyIiwiaWF0IjoxNjY1NDU4MTQ5Ljg1MTEyOCwibmJmIjoxNjY1NDU4MTQ5Ljg1MTEzMSwiZXhwIjoxNjk2OTk0MTQ5Ljg0ODg3NCwic3ViIjoiMjU1ODAiLCJzY29wZXMiOlsiYXBpIl19.ZGw67Bn23w-vDxhkv90Nr1dhTx2NLma9eV5b5BWbclgrq-zt7NgrhwMJeueejQhnr5ZByy6I8EQpTR-C-_k3yyCthruD1IUxD0F_geVcXYTx-CNJBtEKu_X2ztdi1lEzSkK4bQHWMTYj1j2p8dSIW3_IsRFpJaSUTQe_m6iGHb3c2m7SmyERgNJjsHfuURPIP-ooxDVCMvCzMMxdDJx0e1dDXW4vE1MdSvC21YEZBBL24YtgVzMqjlhXFvfM7Krer4t5mpAzD-odDfPkKUAoxAepfx048y2vCF_bgukXuDS8Rwk2zxFfGoV2-ra0KPR7MS-AVaUx3DJFAjV4ZD_wUKI3ql-79cs6bHAilW7GuEaiBxSwoBpOQtMcMOEoD5gK32rd6XaUCsJ98mHhAncnXhHKmCH_C-fxVXmfOyLyhiJoN5iwIduSbNC-Lfd6QZ3DtDkgLSd-tlylfNgCJVQjYZ9mSM2sTHQII-z00U0VCJM7thfp1RbVPgqSISY4d5Y9LkG_J3OYkgLkxNl9UOFsDIkKlHZC8STtlOC4LkutBhOuVbvciiRH2rKOFQEfkoD72Lhs0kh0eA6dorDCECI2QHmLpmX7ISnUbZRTbX6ActeycCU3otCfNMn-rtfylxBcph5mItDbuBnrXc7aOiDvdNjU7nxvGe_qGQWDAuu2SkY',
+                'Content-Type: application/json'
+            ),
+        ));
+
+        $response = curl_exec($curl);
+        curl_close($curl);
+        $response = json_decode($response);
+
+        if ($response->success == true) {
+            $new_post = array(
+                'post_title' => $invoice,
+                'post_status' => 'publish',
+                'post_date' => date('Y-m-d H:i:s'),
+                //'post_author' => $user_ID,
+                'post_type' => 'transaksiv2',
+                //'post_category' => array(0)
+            );
+
+            $post_id = wp_insert_post($new_post);
+
+            update_field( 'trx_id', $response->data->trx_id, $post_id );//trxid
+            update_field( 'link-pembayaran', $response->data->payment_link, $post_id );
+            update_field( 'status', $response->data->status, $post_id );
+            update_field( 'total', $response->data->total, $post_id );
+            update_field( 'jumlah_bulan', $response->data->items[0]->qty, $post_id );
+            update_field( 'tanggal_transaksi', date("Y-m-d H:i:s", time()), $post_id );
+            update_field( 'tanggal_kadaluarsa', $expired_date, $post_id );
+            update_field( 'rumah', $rumahID, $post_id );
+            update_field( 'iuran', $iuranID, $post_id );
+            update_field( 'user', $userId, $post_id );
+            update_field( 'keterangan', $description, $post_id );
+            update_field( 'catatan', $notes, $post_id );
+
+
+            //set bulan bayar
+            $startMouth = $request["startM"];
+            $dlast = strtotime($startMouth);
+            $datelast = date('F Y', $dlast);
+
+            $endMouth = $request["endM"];;
+            $dEnd = strtotime($endMouth);
+            $dateEnd = date('F Y', $dEnd);
+
+            //list bulan belum bayar
+            $start    = new DateTime($datelast);
+            $start->modify('first day of this month');
+            $end      = new DateTime($dateEnd);
+            $end->modify('first day of next month');
+            $interval = new DateInterval('P1M');
+            $period   = new DatePeriod($start, $interval, $end);
+
+            $per = [];
+            $i= 0;
+            foreach ($period as $dt) {
+                $i++;
+                //echo $dt->format("Y-m") . "<br>\n";
+                array_push($per, $dt->format("F | Y"));
+
+            }
+
+            $listbln = implode("\n",$per);
+
+            update_field( 'bulan_tahun', $listbln, $post_id );
+
+        }
+
+
+
+
+        return rest_ensure_response( [
+            'status' =>  $response->success,
+            'message'   => 'success',
+            'data' => $response->data,
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
+
+function moota_callback ($request) {
+    $body = $request->get_params();
+    $invoice = $body['invoice_number'];
+    $status = $body['status'];
+    $tanggal_bayar = $body['payment_at'];
+
+    if ($invoice) {
+        $args = array(
+            'post_type' => 'transaksiv2',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            's' => $invoice,
+
+        );
+
+        $posts = get_posts($args);
+        foreach ( $posts as $post ) {
+            $post_id =  $post->ID;
+        }
+
+        update_field( 'status',$status, $post_id );
+        update_field( 'tanggal_bayar',$tanggal_bayar, $post_id );
+
+    }
+
+
+    return rest_ensure_response( [
+        'status' =>  true,
+        'message'   => 'success',
+        'data' => $post_id,
+    ] );
+
+
+}
+
+function transaction_moota($req) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by('id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+
+        $invoice = $req['stringvar'];
+        $limit = $req['limit'];
+
+        if($invoice) {
+            $args = array(
+                'post_type' => 'transaksiv2',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                's' => $invoice,
+                'meta_query' => array(
+                    array(
+                        'key' => 'user',
+                        'value' => $userId,
+                       // 'compare' => 'LIKE'
+                    )
+                )
+            );
+        } else if($limit) {
+            $args = array(
+                'post_type' => 'transaksiv2',
+                'posts_per_page' => $limit,
+                'post_status' => 'publish',
+                'meta_query' => array(
+                    array(
+                        'key' => 'user',
+                        'value' => $userId,
+                        //'compare' => 'LIKE'
+                    )
+                )
+            );
+        } else {
+            $args = array(
+                'post_type' => 'transaksiv2',
+                'posts_per_page' => -1,
+                'post_status' => 'publish',
+                'meta_query' => array(
+                    array(
+                        'key' => 'user',
+                        'value' => $userId,
+                       // 'compare' => 'LIKE'
+                    )
+                )
+            );
+        }
+
+
+        $posts = get_posts($args);
+
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => $invoice
+            ] );
+        }
+        $ins_data = array();
+        $i = 0;
+
+        foreach ( $posts as $post ) {
+            $ins_data[] = array(  // you can ad anything here and as many as you want
+                'ID' => $post->ID,
+                'invoice' => $post->post_title,
+                'iuran_name' => get_field( 'iuran', $post->ID)->post_title,
+                'status' =>  get_field( 'status', $post->ID),
+                'tgl_buat' => get_field( 'tanggal_transaksi', $post->ID),
+                'tgl_kadaluarsa' => get_field( 'tanggal_kadaluarsa', $post->ID),
+                'tanggal_bayar' => get_field( 'tanggal_bayar', $post->ID),
+                'nominal' => get_field( 'total', $post->ID),
+                'description' => get_field( 'keterangan', $post->ID),
+                'notes' => get_field( 'catatan', $post->ID),
+
+            );
+            $i++;
+        }
+
+
+        // Returned Data
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            'data' => $ins_data,
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+
+
+
+}
