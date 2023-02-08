@@ -249,3 +249,121 @@ function cronstarter_activation() {
 }
 // and make sure it's called whenever WordPress loads
 add_action('init', 'cronstarter_activation');
+
+add_filter( 'manage_transaksiv2_posts_columns', 'set_custom_edit_transaksiv2_columns' );
+add_action( 'manage_transaksiv2_posts_custom_column' , 'custom_transaksiv2_column', 10, 2 );
+
+//function set_custom_edit_transaksiv2_columns( $cols ) {
+//    $cols = array(
+//        'title'      => 'Title',
+//        'iuran' => 'Iuran',
+//        'total' => 'Total',
+//        'status' => 'Status',
+//        'bulan' => 'Bulan',
+//        'tahun' => 'Tahun',
+//        'date'       => 'Release Date'
+//    );
+//    return $cols;
+//}
+
+function set_custom_edit_transaksiv2_columns($columns) {
+    //unset( $columns['title'] );
+    $columns['iuran'] = __( 'Iuran', 'your_text_domain' );
+    $columns['status'] = __( 'Status', 'your_text_domain' );
+    $columns['total'] = __( 'Total', 'your_text_domain' );
+    //$columns['date'] = __( 'Release', 'your_text_domain' );
+
+    return $columns;
+}
+
+function custom_transaksiv2_column( $column, $post_id ) {
+    switch ( $column ) {
+
+        case 'status' :
+            $status = get_field('status', $post_id);
+            if( $status ) {
+                echo $status;
+            }
+            else
+                _e('-' );
+            break;
+
+        case 'total' :
+            $total = get_field('total', $post_id);
+            if( $total ) {
+                echo $total;
+            }
+            else
+                _e('-' );
+            break;
+
+        case 'iuran' :
+            $iuran = get_field('iuran', $post_id)->post_title;
+            if( $iuran ) {
+                echo $iuran;
+            }
+            else
+                _e('-' );
+            break;
+
+        // case 'bulan' :
+        //     $taxonomy = 'tax_bulan';
+        //     $post_type = get_post_type($post_id);
+        //     $terms = get_the_terms($post_id, $taxonomy);
+        //     if (!empty($terms) ) {
+        //         foreach ( $terms as $term )
+        //             $post_terms[] ="<a href='edit.php?post_type={$post_type}&{$taxonomy}={$term->slug}'> " .esc_html(sanitize_term_field('name', $term->name, $term->term_id, $taxonomy, 'edit')) . "</a>";
+        //         echo join('', $post_terms );
+        //     }
+        //     else
+        //         _e('-' );
+        //     break;
+
+        // case 'tahun' :
+        //     $taxonomy = 'tax_tahun';
+        //     $post_type = get_post_type($post_id);
+        //     $terms = get_the_terms($post_id, $taxonomy);
+        //     if (!empty($terms) ) {
+        //         foreach ( $terms as $term )
+        //             $post_terms[] ="<a href='edit.php?post_type={$post_type}&{$taxonomy}={$term->slug}'> " .esc_html(sanitize_term_field('name', $term->name, $term->term_id, $taxonomy, 'edit')) . "</a>";
+        //         echo join('', $post_terms );
+        //     }
+        //     else
+        //         _e('-' );
+        //     break;
+    }
+}
+
+add_filter( 'manage_bulan-iuran_posts_columns', 'set_custom_edit_bulan_iuran_columns' );
+add_action( 'manage_bulan-iuran_posts_custom_column' , 'custom_bulan_iuran_column', 10, 2 );
+
+function set_custom_edit_bulan_iuran_columns($columns) {
+    //unset( $columns['title'] );
+    $columns['bulan'] = __( 'Bulan', 'your_text_domain' );
+    $columns['tahun'] = __( 'Tahun', 'your_text_domain' );
+
+    return $columns;
+}
+
+function custom_bulan_iuran_column( $column, $post_id ) {
+    switch ( $column ) {
+
+        case 'bulan' :
+            $status = get_field('bulan_iu', $post_id);
+            if( $status ) {
+                echo $status;
+            }
+            else
+                _e('-' );
+            break;
+
+        case 'tahun' :
+            $total = get_field('tahun_iu', $post_id);
+            if( $total ) {
+                echo $total;
+            }
+            else
+                _e('-' );
+            break;
+    }
+}
