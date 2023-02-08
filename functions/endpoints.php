@@ -1891,8 +1891,8 @@ function checkout_moota($request) {
         //$payment_method_id ='DZ4jAJYOWAo';
         //$type ='bca';
         $qty = intval( $request ["qty"]);
-        //$callback_url ='https://310up.ink/pivi/wp-json/cs/v1/moota/callback';
-        $callback_url ='https://webhook.site/df5a57fb-ae9a-4f80-9b9c-7d2683c27bbd';
+        $callback_url ='https://komtest.dev.s360.is/wp-json/cs/v1/moota/callback';
+        //$callback_url ='https://webhook.site/df5a57fb-ae9a-4f80-9b9c-7d2683c27bbd';
         $description = $request ["desc"];
         $notes = $request ["notes"];
         $expired_date = date("Y-m-d H:i:s", strtotime("now +1 hour"));
