@@ -1990,7 +1990,6 @@ function checkout_moota($request) {
 
             update_field( 'bulan_tahun', $listbln, $post_id );
 
-        }
 
 
 
