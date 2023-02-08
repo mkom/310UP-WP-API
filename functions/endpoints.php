@@ -298,8 +298,10 @@ function send_verify($request) {
 
 
         $userdata = get_userdata($user_id);
-        $blogname = wp_specialchars_decode(get_option('blogname'), ENT_QUOTES);
-        $vcode = get_field('verification_code', 'user_' .$user_id);
+        //$blogname = wp_specialchars_decode(get_option('blogname'), ENT_QUOTES);
+        $blogname = 'VCPAY';
+        //$vcode = get_field('verification_code', 'user_' .$user_id);
+        $vcode = get_user_meta($user_id, 'verification_code', true);
 
         //$message = sprintf(__('Username: %s'), $userdata -> user_email)."\r\n";
         $message = sprintf(__('Verification code: %s'), $vcode)."\r\n";
