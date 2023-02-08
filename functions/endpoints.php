@@ -291,9 +291,9 @@ function send_verify($request) {
             update_user_meta( $user_id, 'verification_code', $user_pass);
         }
 
-        $array_data = array();
-        $array_data['email'] =  $user_email;
-        $array_data['vcode'] = get_field('verification_code', 'user_' . $user_id);
+//        $array_data = array();
+//        $array_data['email'] =  $user_email;
+//        $array_data['vcode'] = get_field('verification_code', 'user_' . $user_id);
 
 
 
@@ -311,7 +311,7 @@ function send_verify($request) {
 
         return rest_ensure_response( [
             'status' => true,
-            'message'   => 'success'
+            'message'   => $blogname
         ] );
 
         return set_status(200);
@@ -558,12 +558,13 @@ function login_user($request) {
         $response = wp_remote_retrieve_body( $request );
         $response = json_decode($response, true);
 
-        $resident =  get_field('address', 'user_' . $user->ID );
+        //$resident =  get_field('address', 'user_' . $user->ID );
+        $resident = get_user_meta($user->ID, 'address', true);
 
         if ($resident == false) {
             $resident = null;
         } else {
-            $resident = get_field('address', 'user_' . $user->ID );
+            $resident = get_user_meta($user->ID, 'address', true);
         }
 
         return rest_ensure_response( [
