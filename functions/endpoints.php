@@ -1913,8 +1913,8 @@ function checkout_moota($request) {
             CURLOPT_POSTFIELDS => '{
                 "invoice_number" : "'.$invoice.'",
                 "amount" : '.$amount.',
-                "payment_method_id" : "DZ4jAJYOWAo",
-                "type" : "bca",
+                "payment_method_id" : "bpPkBddxjB2",
+                "type" : "jenius",
                 "callback_url" : "'.$callback_url.'",
                 "expired_date" : "'.$expired_date.'",
                 "description" : "'.$description.'",
