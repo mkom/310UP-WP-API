@@ -367,3 +367,11 @@ function custom_bulan_iuran_column( $column, $post_id ) {
             break;
     }
 }
+
+// add_action('future_to_publish', 'set_status_publish'); 
+// function set_status_publish( $post ) { 
+//     if ( $post && $post->post_type =="user-profile"){
+//        $post->post_status="online"; // change the post_status
+//        wp_update_post( $post );
+//     }    
+// } 

@@ -821,7 +821,7 @@ function set_profile($request) {
         );
 
         if(empty($check_title)) {
-            $post_id = wp_insert_post($new_post);
+            $post_id = wp_insert_post($new_post, true );
 
         } else {
             $args = array(
@@ -868,7 +868,7 @@ function set_profile($request) {
 
 
         if(empty($userProfile)) {
-            $profile_id = wp_insert_post($new_post_profile);
+            $profile_id = wp_insert_post($new_post_profile, true );
         } else {
             $args = array(
                 'post_type' => 'user-profile',
@@ -1263,7 +1263,7 @@ function notification($request) {
                 //'post_category' => array(0)
             );
 
-            $post_id = wp_insert_post($new_post);
+            $post_id = wp_insert_post($new_post, true);
 
             update_field('data_transaksi', array('custom_field1'=>$notif->custom_field1), $post_id);
             update_field('data_transaksi', array('custom_field2'=>$notif->custom_field2), $post_id);
@@ -1665,7 +1665,7 @@ function join_iuran($request) {
         );
 
         if(empty($check_title)) {
-            $post_id = wp_insert_post($new_post);
+            $post_id = wp_insert_post($new_post, true);
 
         } else {
             //$post_id = wp_update_post($new_post);
@@ -1902,6 +1902,8 @@ function checkout_moota($request) {
 
 
         //transaction
+        // "payment_method_id" : "bpPkBddxjB2",
+        // "type" : "jenius",
         $curl = curl_init();
 
         curl_setopt_array($curl, array(
@@ -1916,8 +1918,8 @@ function checkout_moota($request) {
             CURLOPT_POSTFIELDS => '{
                 "invoice_number" : "'.$invoice.'",
                 "amount" : '.$amount.',
-                "payment_method_id" : "bpPkBddxjB2",
-                "type" : "jenius",
+                "payment_method_id" : "DZ4jAJYOWAo",
+                "type" : "bca",
                 "callback_url" : "'.$callback_url.'",
                 "expired_date" : "'.$expired_date.'",
                 "description" : "'.$description.'",
@@ -1962,7 +1964,7 @@ function checkout_moota($request) {
                 //'post_category' => array(0)
             );
 
-            $post_id = wp_insert_post($new_post);
+            $post_id = wp_insert_post($new_post, true);
 
             update_field( 'trx_id', $response->data->trx_id, $post_id );//trxid
             update_field( 'link-pembayaran', $response->data->payment_link, $post_id );
@@ -2019,7 +2021,7 @@ function checkout_moota($request) {
                 );
 
                 if(empty($check_title)) {
-                    $bln_iu_id = wp_insert_post($new_bln_iu);
+                    $bln_iu_id = wp_insert_post($new_bln_iu, true);
                     update_field( 'bulan_iu', $dt->format("F"), $bln_iu_id );
                     update_field( 'tahun_iu', $dt->format("Y"), $bln_iu_id );
 
