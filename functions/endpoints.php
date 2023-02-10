@@ -1122,68 +1122,6 @@ function checkout_md($request) {
         $invoice = 'INV'.$userId.''.$iuransku.''.time();
         $orderID = $invoice;
      
-
-        $transaction_details = array(
-            'order_id' => $orderID,
-            'gross_amount' => $request->get_params()['price'], // no decimal allowed for creditcard
-        );
-
-        // Optional
-        $item_details = array(
-            array(
-                'id' => $IDiu,
-                'price' =>  $nominal,
-                'quantity' =>  $request->get_params()['qty'],
-                'name' =>  $iuranName,
-                'brand' => 'IPL VC',
-                'category'=> 'iuran',
-                'merchant_name' => 'VCPAY'
-            )
-        );
-
-        // Optional
-        $billing_address = array(
-            'first_name'    => $user->data->display_name,
-            'last_name'     => "",
-            'address'       => $no_Rumah,
-            //'city'          => "Sukabumi",
-            //'postal_code'   => "143115",
-            'phone'         => get_field('phone_number', 'user_' . $userId ),
-           // 'country_code'  => 'IDN'
-        );
-
-        // Optional
-        $customer_details = array(
-            'first_name'    => $user->data->display_name,
-            //'last_name'     => "Rizky",
-            'email'         => $user->data->user_email,
-            'phone'         => get_field('phone_number', 'user_' . $userId ),
-            'billing_address'  => $billing_address
-        );
-
-        $expiry = array(
-            'unit' => 'minutes',
-            'duration' => 120
-        );
-
-        // Optional, remove this to display all available payment methods
-        //$enable_payments = array('credit_card','cimb_clicks','mandiri_clickpay','echannel');
-
-        $transaction = array(
-            //'enabled_payments' => $enable_payments,
-            'transaction_details' => $transaction_details,
-            'customer_details' => $customer_details,
-            'item_details' => $item_details,
-            'custom_field1' => $request->get_params()['desc'],
-            'custom_field2' => $request->get_params()['notes'],
-            'custom_field3' => $request->get_params()['qty'], // jumlah bulan bayar
-            'expiry'        => $expiry,
-        );
-
-        //$snapToken ='asd';
-        // $snapToken = Midtrans\Snap::getSnapToken($transaction);
-        //echo "snapToken = ".$snapToken;
-
         //create first transaksi
         if($invoice) {
             $new_post = array(
@@ -1268,7 +1206,7 @@ function checkout_md($request) {
             $listbln = implode("\n",$per);
             update_field( 'bulan_tahun', $listbln, $post_id );
 
-            update_field( 'status', 'pending', $post_id );
+            update_field( 'status', 'hold', $post_id );
             update_field( 'total', $request->get_params()["price"], $post_id );
             update_field( 'jumlah_bulan', $request->get_params()["qty"], $post_id );
             update_field( 'rumah', $rumahID, $post_id );
@@ -1283,7 +1221,7 @@ function checkout_md($request) {
             'status' => true,
             'message'   => 'success',
            // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
-           // 'snapToken' =>$snapToken,
+            'snapToken' =>$invoice,
         ] );
 
     } else {
@@ -2504,7 +2442,7 @@ function moota_callback ($request) {
 
 }
 
-function transaction_moota($req) {
+function transaction_list($req) {
     $currentuserid_fromjwt = get_current_user_id();
 
     if ($currentuserid_fromjwt != 0) {
@@ -2525,7 +2463,12 @@ function transaction_moota($req) {
                         'key' => 'user',
                         'value' => $userId,
                        // 'compare' => 'LIKE'
-                    )
+                    ),
+                    array(
+                        'key' => 'status',
+                        'value' => 'hold',
+                        'compare' => '!='
+                    ),
                 )
             );
         } else if($limit) {
@@ -2538,7 +2481,12 @@ function transaction_moota($req) {
                         'key' => 'user',
                         'value' => $userId,
                         //'compare' => 'LIKE'
-                    )
+                    ),
+                    array(
+                        'key' => 'status',
+                        'value' => 'hold',
+                        'compare' => '!='
+                    ),
                 )
             );
         } else {
@@ -2551,7 +2499,12 @@ function transaction_moota($req) {
                         'key' => 'user',
                         'value' => $userId,
                        // 'compare' => 'LIKE'
-                    )
+                    ),
+                    array(
+                        'key' => 'status',
+                        'value' => 'hold',
+                        'compare' => '!='
+                    ),
                 )
             );
         }
