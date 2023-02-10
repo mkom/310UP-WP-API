@@ -1181,109 +1181,109 @@ function checkout_md($request) {
         );
 
         //$snapToken ='asd';
-        //$snapToken = Midtrans\Snap::getSnapToken($transaction);
+        // $snapToken = Midtrans\Snap::getSnapToken($transaction);
         //echo "snapToken = ".$snapToken;
 
         //create first transaksi
-        // if($snapToken) {
-        //     $new_post = array(
-        //         'post_title' => $invoice,
-        //         'post_status' => 'publish',
-        //         'post_date' => date('Y-m-d H:i:s'),
-        //         //'post_author' => $user_ID,
-        //         'post_type' => 'transaksiv2',
-        //         //'post_category' => array(0)
-        //     );
+        if($invoice) {
+            $new_post = array(
+                'post_title' => $invoice,
+                'post_status' => 'publish',
+                'post_date' => date('Y-m-d H:i:s'),
+                //'post_author' => $user_ID,
+                'post_type' => 'transaksiv2',
+                //'post_category' => array(0)
+            );
 
-        //     $post_id = wp_insert_post($new_post, true);
+            $post_id = wp_insert_post($new_post, true);
 
-        //     //set bulan bayar
-        //     $startMouth =  $request->get_params()['startM'];
-        //     $dlast = strtotime($startMouth);
-        //     $datelast = date('F Y', $dlast);
+            //set bulan bayar
+            $startMouth =  $request->get_params()['startM'];
+            $dlast = strtotime($startMouth);
+            $datelast = date('F Y', $dlast);
 
-        //     $endMouth = $request->get_params()["endM"];
-        //     $dEnd = strtotime($endMouth);
-        //     $dateEnd = date('F Y', $dEnd);
+            $endMouth = $request->get_params()["endM"];
+            $dEnd = strtotime($endMouth);
+            $dateEnd = date('F Y', $dEnd);
 
-        //     //list bulan belum bayar
-        //     $start    = new DateTime($datelast);
-        //     $start->modify('first day of this month');
-        //     $end      = new DateTime($dateEnd);
-        //     $end->modify('first day of next month');
-        //     $interval = new DateInterval('P1M');
-        //     $period   = new DatePeriod($start, $interval, $end);
+            //list bulan belum bayar
+            $start    = new DateTime($datelast);
+            $start->modify('first day of this month');
+            $end      = new DateTime($dateEnd);
+            $end->modify('first day of next month');
+            $interval = new DateInterval('P1M');
+            $period   = new DatePeriod($start, $interval, $end);
 
-        //     $per = [];
-        //     $terms_bln = [];
-        //     $terms_thn = [];
-        //     $i= 0;
-        //     $valueid = [];
+            $per = [];
+            $terms_bln = [];
+            $terms_thn = [];
+            $i= 0;
+            $valueid = [];
 
-        //     foreach ($period as $dt) {
-        //         $i++;
+            foreach ($period as $dt) {
+                $i++;
                
-        //         array_push($per, $dt->format("F | Y"));
+                array_push($per, $dt->format("F | Y"));
 
-        //         // new post bulan iuran
-        //         $check_title = get_page_by_title($dt->format("F Y"), 'OBJECT', 'bulan-iuran');
+                // new post bulan iuran
+                $check_title = get_page_by_title($dt->format("F Y"), 'OBJECT', 'bulan-iuran');
             
-        //         $new_bln_iu = array(
-        //             'post_title' => $dt->format("F Y"),
-        //             'post_status' => 'publish',
-        //             'post_date' => date('Y-m-d H:i:s'),
-        //             //'post_author' => $user_ID,
-        //             'post_type' => 'bulan-iuran',
-        //             //'post_category' => array(0)
-        //         );
+                $new_bln_iu = array(
+                    'post_title' => $dt->format("F Y"),
+                    'post_status' => 'publish',
+                    'post_date' => date('Y-m-d H:i:s'),
+                    //'post_author' => $user_ID,
+                    'post_type' => 'bulan-iuran',
+                    //'post_category' => array(0)
+                );
 
-        //         if(empty($check_title)) {
-        //             $bln_iu_id = wp_insert_post($new_bln_iu, true);
-        //             update_field( 'bulan_iu', $dt->format("F"), $bln_iu_id );
-        //             update_field( 'tahun_iu', $dt->format("Y"), $bln_iu_id );
+                if(empty($check_title)) {
+                    $bln_iu_id = wp_insert_post($new_bln_iu, true);
+                    update_field( 'bulan_iu', $dt->format("F"), $bln_iu_id );
+                    update_field( 'tahun_iu', $dt->format("Y"), $bln_iu_id );
 
-        //             array_push($valueid, $bln_iu_id);
+                    array_push($valueid, $bln_iu_id);
                     
-        //         } else {
+                } else {
 
-        //             $bln_args = array(
-        //                 'post_type' => 'bulan-iuran',
-        //                 'post_status' => 'publish',
-        //                 's' => $dt->format("F Y"),
-        //             );
+                    $bln_args = array(
+                        'post_type' => 'bulan-iuran',
+                        'post_status' => 'publish',
+                        's' => $dt->format("F Y"),
+                    );
             
-        //             $bln_posts = get_posts($bln_args);
+                    $bln_posts = get_posts($bln_args);
 
-        //             foreach ( $bln_posts as $post ) {
-        //                 $bln_id =  $post->ID;
-        //                 array_push($valueid, $bln_id);
-        //             }
+                    foreach ( $bln_posts as $post ) {
+                        $bln_id =  $post->ID;
+                        array_push($valueid, $bln_id);
+                    }
 
-        //         }
+                }
                  
-        //     }
+            }
 
-        //     update_field('bulan_bayar', $valueid, $post_id);
+            update_field('bulan_bayar', $valueid, $post_id);
 
-        //     $listbln = implode("\n",$per);
-        //     update_field( 'bulan_tahun', $listbln, $post_id );
+            $listbln = implode("\n",$per);
+            update_field( 'bulan_tahun', $listbln, $post_id );
 
-        //     update_field( 'status', 'pending', $post_id );
-        //     update_field( 'total', $request->get_params()["price"], $post_id );
-        //     update_field( 'jumlah_bulan', $request->get_params()["qty"], $post_id );
-        //     update_field( 'rumah', $rumahID, $post_id );
-        //     update_field( 'iuran', $iuranID, $post_id );
-        //     update_field( 'link-pembayaran', $snapToken, $post_id );
-        //     update_field( 'user', $userId, $post_id );
+            update_field( 'status', 'pending', $post_id );
+            update_field( 'total', $request->get_params()["price"], $post_id );
+            update_field( 'jumlah_bulan', $request->get_params()["qty"], $post_id );
+            update_field( 'rumah', $rumahID, $post_id );
+            update_field( 'iuran', $iuranID, $post_id );
+            update_field( 'link-pembayaran', $snapToken, $post_id );
+            update_field( 'user', $userId, $post_id );
  
-        // }
+        }
 
         
         return rest_ensure_response( [
             'status' => true,
             'message'   => 'success',
            // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
-            //'snapToken' =>$snapToken,
+           // 'snapToken' =>$snapToken,
         ] );
 
     } else {
@@ -1419,6 +1419,8 @@ function md_snaptoken($request) {
         $snapToken = Midtrans\Snap::getSnapToken($transaction);
         //echo "snapToken = ".$snapToken;
 
+
+        
         return rest_ensure_response( [
             'status' => true,
             'message'   => 'success',
