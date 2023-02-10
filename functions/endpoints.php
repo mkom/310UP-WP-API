@@ -141,11 +141,11 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
-        register_rest_route( 'cs/v1', 'transaction',array(
-            'methods'  => 'GET',
-            'callback' => 'get_transaction',
-            'permission_callback' => '__return_true',
-        ));
+        // register_rest_route( 'cs/v1', 'transaction',array(
+        //     'methods'  => 'GET',
+        //     'callback' => 'transaction_list',
+        //     'permission_callback' => '__return_true',
+        // ));
 
         register_rest_route( 'cs/v1/moota/', 'checkout',array(
             'methods'  => 'POST',
@@ -153,15 +153,15 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
-        register_rest_route( 'cs/v1/moota/', 'transaction/(?P<stringvar>[^/]+)',array(
+        register_rest_route( 'cs/v1', 'transaction/(?P<stringvar>[^/]+)',array(
             'methods'  => 'GET',
-            'callback' => 'transaction_moota',
+            'callback' => 'transaction_list',
             'permission_callback' => '__return_true',
         ));
 
-        register_rest_route( 'cs/v1/moota/', 'transaction',array(
+        register_rest_route( 'cs/v1', 'transaction',array(
             'methods'  => 'GET',
-            'callback' => 'transaction_moota',
+            'callback' => 'transaction_list',
             'permission_callback' => '__return_true',
         ));
 
@@ -1213,6 +1213,7 @@ function checkout_md($request) {
             update_field( 'iuran', $iuranID, $post_id );
             update_field( 'link-pembayaran', $snapToken, $post_id );
             update_field( 'user', $userId, $post_id );
+            update_field( 'payment_gateway', 'midtrans', $post_id );
  
         }
 
@@ -1560,7 +1561,8 @@ function md_callback($request) {
             update_field( 'total', $notif->gross_amount, $post_id );
             update_field( 'jumlah_bulan', $notif->custom_field3, $post_id );
             update_field( 'tanggal_transaksi', $notif->transaction_time, $post_id );
-            //update_field( 'tanggal_kadaluarsa', $expired_date, $post_id );
+            update_field( 'tanggal_kadaluarsa', $notif->expiry_time, $post_id );
+            update_field( 'tanggal_bayar', $notif->settlement_time, $post_id );
             update_field( 'rumah', $rumahID, $post_id );
             update_field( 'iuran', $iuranID, $post_id );
             update_field( 'user', $userId, $post_id );
@@ -2467,7 +2469,7 @@ function transaction_list($req) {
                     array(
                         'key' => 'status',
                         'value' => 'hold',
-                        'compare' => '!='
+                        'compare' => 'NOT LIKE'
                     ),
                 )
             );
@@ -2485,7 +2487,7 @@ function transaction_list($req) {
                     array(
                         'key' => 'status',
                         'value' => 'hold',
-                        'compare' => '!='
+                        'compare' => 'NOT LIKE'
                     ),
                 )
             );
@@ -2503,7 +2505,7 @@ function transaction_list($req) {
                     array(
                         'key' => 'status',
                         'value' => 'hold',
-                        'compare' => '!='
+                        'compare' => 'NOT LIKE’'
                     ),
                 )
             );
