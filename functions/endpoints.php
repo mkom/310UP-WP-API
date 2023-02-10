@@ -1181,7 +1181,7 @@ function checkout_md($request) {
         );
 
         //$snapToken ='asd';
-        $snapToken = Midtrans\Snap::getSnapToken($transaction);
+        //$snapToken = Midtrans\Snap::getSnapToken($transaction);
         //echo "snapToken = ".$snapToken;
 
         //create first transaksi
@@ -1283,7 +1283,7 @@ function checkout_md($request) {
             'status' => true,
             'message'   => 'success',
            // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
-            'snapToken' =>$snapToken,
+            //'snapToken' =>$snapToken,
         ] );
 
     } else {
