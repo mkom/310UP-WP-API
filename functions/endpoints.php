@@ -1068,7 +1068,7 @@ function checkout_md($request) {
         $user = get_user_by( 'id', $currentuserid_fromjwt);
         $userId = $user->ID;
 
-        $code = $request ["codeiu"];
+        $code =  $request->get_params()['codeiu'];
 
         // Required
         
@@ -1106,6 +1106,7 @@ function checkout_md($request) {
                 array(
                     'key' => 'kode_iuran',
                     'value' => $code,
+                    'compare' => 'LIKE'
                 )
             )
         );
@@ -1211,7 +1212,7 @@ function checkout_md($request) {
             update_field( 'jumlah_bulan', $request->get_params()["qty"], $post_id );
             update_field( 'rumah', $rumahID, $post_id );
             update_field( 'iuran', $iuranID, $post_id );
-            update_field( 'link-pembayaran', $snapToken, $post_id );
+           // update_field( 'link-pembayaran', $snapToken, $post_id );
             update_field( 'user', $userId, $post_id );
             update_field( 'payment_gateway', 'midtrans', $post_id );
  
@@ -1222,7 +1223,7 @@ function checkout_md($request) {
             'status' => true,
             'message'   => 'success',
            // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
-            'snapToken' =>$invoice,
+            'snapToken' => $request->get_params()['codeiu'],
         ] );
 
     } else {
@@ -1387,42 +1388,8 @@ function md_callback($request) {
     $order_id = $notif->order_id;
     $fraud = $notif->fraud_status;
 
-    //$string = 'INV5IPL70E3101664547996';
-    $string = explode("IPL70", $order_id );
-    $ID = substr($string[0], 3);
-    //echo $string[0];    // will display This is a simple sting
-
-    if ($ID != 0) {
-        $user = get_user_by( 'id', $ID);
-        $userId = $user->ID;
-
-
-        // Required
-
-        //get home
-        $args = array(
-            'post_type' => 'rumah',
-            'posts_per_page' => 1,
-            'post_status' => 'publish',
-            'meta_query' => array(
-                array(
-                    'key' => 'user',
-                    'value' => $userId,
-                    'compare' => 'LIKE'
-                )
-            )
-        );
-
-        $posts = get_posts($args);
-        $noRumah = '';
-        foreach ( $posts as $post ) {
-            $idrm =  $post->ID;
-            $noRumah .= str_replace("-", "",  $post->post_title);
-            $noRumah .= str_replace("-", "",  $post->post_title);
-            $no_Rumah .= $post->post_title;
-            $rumahID = $post->ID;
-        }
-
+    if ($order_id) {
+    
 
         $message = 'ok';
         if ($transaction == 'capture') {
@@ -1500,15 +1467,16 @@ function md_callback($request) {
             update_field( 'trx_id', $notif->transaction_id, $post_id );//trxid
             //update_field( 'link-pembayaran', $response->data->payment_link, $post_id );
             update_field( 'status', $status, $post_id );
-            update_field( 'total', $notif->gross_amount, $post_id );
-            update_field( 'jumlah_bulan', $notif->custom_field3, $post_id );
+            //update_field( 'total', $notif->gross_amount, $post_id );
+            //update_field( 'jumlah_bulan', $notif->custom_field3, $post_id );
             update_field( 'tanggal_transaksi', $notif->transaction_time, $post_id );
-            //update_field( 'tanggal_kadaluarsa', $expired_date, $post_id );
-            update_field( 'rumah', $rumahID, $post_id );
-            update_field( 'iuran', $iuranID, $post_id );
-            update_field( 'user', $userId, $post_id );
-            update_field( 'keterangan', $notif->custom_field1, $post_id );
-            update_field( 'catatan', $notif->custom_field2, $post_id );
+            update_field( 'tanggal_kadaluarsa', $expired_date, $post_id );
+            update_field( 'tanggal_bayar', $notif->settlement_time, $post_id );
+            //update_field( 'rumah', $rumahID, $post_id );
+            //update_field( 'iuran', $iuranID, $post_id );
+            //update_field( 'user', $userId, $post_id );
+            //update_field( 'keterangan', $notif->custom_field1, $post_id );
+            //update_field( 'catatan', $notif->custom_field2, $post_id );
 
             //set rumah dan user
             // update_field( 'rumah_trx', $idrm, $post_id );
@@ -1558,16 +1526,16 @@ function md_callback($request) {
             update_field( 'trx_id', $notif->transaction_id, $post_id );//trxid
             //update_field( 'link-pembayaran', $response->data->payment_link, $post_id );
             update_field( 'status',  $status, $post_id );
-            update_field( 'total', $notif->gross_amount, $post_id );
-            update_field( 'jumlah_bulan', $notif->custom_field3, $post_id );
+           // update_field( 'total', $notif->gross_amount, $post_id );
+           // update_field( 'jumlah_bulan', $notif->custom_field3, $post_id );
             update_field( 'tanggal_transaksi', $notif->transaction_time, $post_id );
             update_field( 'tanggal_kadaluarsa', $notif->expiry_time, $post_id );
             update_field( 'tanggal_bayar', $notif->settlement_time, $post_id );
-            update_field( 'rumah', $rumahID, $post_id );
-            update_field( 'iuran', $iuranID, $post_id );
-            update_field( 'user', $userId, $post_id );
-            update_field( 'keterangan', $notif->custom_field1, $post_id );
-            update_field( 'catatan', $notif->custom_field2, $post_id );
+            //update_field( 'rumah', $rumahID, $post_id );
+            //update_field( 'iuran', $iuranID, $post_id );
+            //update_field( 'user', $userId, $post_id );
+           // update_field( 'keterangan', $notif->custom_field1, $post_id );
+           // update_field( 'catatan', $notif->custom_field2, $post_id );
 
         }
 
@@ -2543,6 +2511,7 @@ function transaction_list($req) {
                 'nominal' => get_field( 'total', $post->ID),
                 'description' => get_field( 'keterangan', $post->ID),
                 'notes' => get_field( 'catatan', $post->ID),
+                'payment_gateway' => get_field( 'payment_gateway', $post->ID),
 
             );
             $i++;
