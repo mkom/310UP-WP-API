@@ -116,6 +116,13 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1', 'user_check',array(
+            'methods'  => 'GET',
+            'callback' => 'user_check',
+            'permission_callback' => '__return_true',
+        ));
+
+
         register_rest_route( 'cs/v1/md/', 'checkout',array(
             'methods'  => 'POST',
             'callback' => 'checkout_md',
@@ -666,6 +673,8 @@ function user_check($request) {
             $array_data['phone_number'] = get_field('phone_number', 'user_' . $userId );
             $array_data['createdAt'] = $user->data->user_registered;
             $array_data['profile_image'] = get_field('profile_image', 'user_' . $userId );
+            $array_data['sync_data'] = get_field('sinkron_data', 'user_' . $userId );
+            $array_data['sync_type'] = get_field('tipe_sinkron', 'user_' . $userId );
             //$array_data['vcode'] = $user;
 
             $response = new WP_REST_Response($array_data);
@@ -741,12 +750,45 @@ function login_user($request) {
             $resident = get_user_meta($user->ID, 'address', true);
         }
 
+        // //create user profile
+        // $userProfileTitle = 'user'.$$user->ID.'-'.$nama;
+        // $userProfile= get_page_by_title($userProfileTitle, 'OBJECT', 'user-profile');
+
+        // $new_post_profile = array(
+        //     'post_title' => $userProfileTitle,
+        //     'post_status' => 'publish',
+        //     'post_date' => date('Y-m-d H:i:s'),
+        //     //'post_author' => $userId,
+        //     'post_type' => 'user-profile',
+        // );
+
+
+        // if(empty($userProfile)) {
+        //     $profile_id = wp_insert_post($new_post_profile, true );
+        // } else {
+        //     $args = array(
+        //         'post_type' => 'user-profile',
+        //         'posts_per_page' => 1,
+        //         'post_status' => 'publish',
+        //         's' => $userProfileTitle,
+        //     );
+        //     $posts = get_posts($args);
+
+        //     foreach ( $posts as $post ) {
+        //         $profile_id = $post->ID;
+
+        //     }
+        // }
+
+        // update_field( 'field_633c73ae0f44f', $userId, $profile_id ); // link user
+
+
         return rest_ensure_response( [
             'status' => true,
             'login' => 1,
             'id' => $user->ID,
             'nonce' => $nonce,
-            'resident' => $resident,
+            //'resident' => $resident,
             'token' => $response['token'],
             'is_user_logged_in' => $current_user,
             'message'   => 'You have successfully logged in'
@@ -1147,79 +1189,7 @@ function user_profile() {
 
             );
         }
-
-        // $iuranUser = array();
-        // $argsiu = array(
-        //     'post_type' => 'user-iuran',
-        //     'posts_per_page' => -1,
-        //     'post_status' => 'publish',
-        //     'meta_query' => array(
-        //         array(
-        //             'key' => 'creator',
-        //             'value' => $userId,
-        //             'compare' => 'LIKE'
-        //         )
-        //     )
-        // );
-
-        // $postsiu = get_posts($argsiu);
-
         
-
-        // $iuranUser = array();
-        // $argsiu = array(
-        //     'post_type' => 'user-iuran',
-        //     'posts_per_page' => -1,
-        //     'post_status' => 'publish',
-        //     'meta_query' => array(
-        //         array(
-        //             'key' => 'creator',
-        //             'value' => $userId,
-        //             'compare' => 'LIKE'
-        //         )
-        //     )
-        // );
-
-        // $postsiu = get_posts($argsiu);
-
-        // foreach ( $postsiu as $iu ) {
-        //     $lastIPLB = get_field('status_iuran',$iu->ID)['bulan'];
-        //     $lastIPLT = get_field('status_iuran',$iu->ID)['tahun'];
-
-        //     $lastIPL = $lastIPLB.' '.$lastIPLT;
-        //     //$getIuran = get_field('iuran',$iu->ID);
-        //     $nominal = '';
-
-        //     $argsmiu = array(
-        //         'post_type' => 'iuran',
-        //         'posts_per_page' => 1,
-        //         'post_status' => 'publish',
-        //         'post__in' => [ $getIuran->ID ]
-        //     );
-
-        //     $postmiu = get_posts($argsmiu);
-        //     $iuranCode = '';
-        //     foreach ( $postmiu as $miu ) {
-        //         $nominal = get_field( 'nominal', $miu->ID );
-        //         $iuranCode = get_field( 'kode_iuran', $miu->ID );
-        //     }
-
-
-        //     $iuranUser[] = array(  // you can ad anything here and as many as you want
-        //         'iuran_link_ID' => $iu->ID,
-        //         'iuranID' => $getIuran->ID,
-        //         'iuran_name' => $getIuran->post_title,
-        //         'iuran_slug' => $getIuran->post_name,
-        //         'iuran_code' => $iuranCode,
-        //         'nominal'   =>$nominal,
-        //         'last_ipl' => $lastIPL,
-        //         'count_ipl' => get_field( 'status_iuran', $iu->ID )['jumlah_ipl_belum_bayar'],
-        //         'bill_ipl' => str_replace("\n", ", ",  get_field( 'status_ipl', $iu->ID )['ipl_belum_bayar']),
-        //         'description' => get_field( 'description', $miu->ID ),
-
-        //     );
-        // }
-
 
         $taxonomy = 'taxblok';
         $terms = get_the_terms( $rmid ,$taxonomy );
@@ -1229,14 +1199,15 @@ function user_profile() {
             $blok =  $term->name;
         }
 
-        if ( empty( $posts ) ) {
+        if ( empty( $postrm ) ) {
             return rest_ensure_response( [
                 'status' => false,
                 'message'   => 'failed'
                 //'data' => '',
             ] );
+            
         } else {
-            foreach ( $posts as $post ) {
+            foreach ( $postrm as $post ) {
             
                 $ins_data[] = array(  // you can ad anything here and as many as you want
                     'profile_id' =>   $post->ID, 
@@ -1257,6 +1228,7 @@ function user_profile() {
                 'status' => true,
                 'message'   => 'success',
                 'data' => $ins_data,
+                'test' => $getIuran,
             ] );
         }
 
@@ -2566,6 +2538,32 @@ function transaction_list($req) {
         $invoice = $req['stringvar'];
         $limit = $req['limit'];
 
+        //get home
+        $argsH = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $postsH = get_posts($argsH);
+        $noRumah = '';
+        $no_Rumah = '';
+        foreach ( $postsH as $postH ) {
+            $noRumah .= str_replace("-", "",  $postH->post_title);
+            $no_Rumah .= $postH->post_title;
+            $rumahID = $postH->ID;
+
+        }
+
+
+
         if($invoice) {
             $args = array(
                 'post_type' => 'transaksiv2',
@@ -2574,8 +2572,8 @@ function transaction_list($req) {
                 's' => $invoice,
                 'meta_query' => array(
                     array(
-                        'key' => 'user',
-                        'value' => $userId,
+                        'key' => 'rumah',
+                        'value' => $rumahID,
                        // 'compare' => 'LIKE'
                     ),
                     array(
@@ -2592,9 +2590,9 @@ function transaction_list($req) {
                 'post_status' => 'publish',
                 'meta_query' => array(
                     array(
-                        'key' => 'user',
-                        'value' => $userId,
-                        //'compare' => 'LIKE'
+                        'key' => 'rumah',
+                        'value' => $rumahID,
+                       // 'compare' => 'LIKE'
                     ),
                     array(
                         'key' => 'status',
@@ -2610,8 +2608,8 @@ function transaction_list($req) {
                 'post_status' => 'publish',
                 'meta_query' => array(
                     array(
-                        'key' => 'user',
-                        'value' => $userId,
+                        'key' => 'rumah',
+                        'value' => $rumahID,
                        // 'compare' => 'LIKE'
                     ),
                     array(
@@ -2638,15 +2636,13 @@ function transaction_list($req) {
         foreach ( $posts as $post ) {
             $bulan_bayar_arr = [];
             $bulan_bayar = get_field('bulan_bayar', $post->ID);
-            
             foreach ($bulan_bayar as $val) {
                 array_push($bulan_bayar_arr, get_the_title( $val->ID) );
             }
 
-
             $dataUser =  array(
-                'name' => $user->data->display_name,
-                'email' => $user->data->user_email,
+                'name' => get_field('user', $post->ID)['display_name'],
+                'email' => get_field('user', $post->ID)['user_email'],
             );
 
             $ins_data[] = array(  // you can ad anything here and as many as you want
