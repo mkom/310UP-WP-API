@@ -189,9 +189,176 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1/home/', 'check',array(
+            'methods'  => 'GET',
+            'callback' => 'home_check',
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route( 'cs/v1/home/', 'sync',array(
+            'methods'  => 'POST',
+            'callback' => 'home_sync',
+            'permission_callback' => '__return_true',
+        ));
+
     }
 );
 
+function home_sync($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $args_home = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            's' => $request ["no_rm"],
+            'tax_query' => array(
+                array (
+                    'taxonomy' => 'taxblok',
+                    'field' => 'name',
+                    'terms' => $request ["no_blok"],
+                )
+            ),
+        );
+
+        $posts_home = get_posts($args_home);
+
+        foreach ( $posts_home as $home ) {
+            $home_id = $home->ID;
+
+        }
+
+        $current_user = get_field( 'field_63270532649ec', $home_id );// add user at home
+        if($current_user) {
+            array_push($current_user, $userId);
+        } else {
+            $current_user = $userId;
+        }
+
+        //seet user at home
+        update_field( 'field_63270532649ec', $current_user, $home_id );
+
+
+
+        //////////////////////////////////////////
+
+
+        //create user profile
+        $userProfileTitle = $user->data->display_name.' #user'.$userId;
+        $userProfile= get_page_by_title($userProfileTitle, 'OBJECT', 'user-profile');
+
+        $new_post_profile = array(
+            'post_title' => $userProfileTitle,
+            'post_status' => 'publish',
+            'post_date' => date('Y-m-d H:i:s'),
+            //'post_author' => $userId,
+            'post_type' => 'user-profile',
+        );
+
+
+        if(empty($userProfile)) {
+            $profile_id = wp_insert_post($new_post_profile, true );
+        } else {
+            $args = array(
+                'post_type' => 'user-profile',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                's' => $userProfileTitle,
+            );
+            $posts = get_posts($args);
+
+            foreach ( $posts as $post ) {
+                $profile_id = $post->ID;
+
+            }
+        }
+
+        update_field( 'field_633c73ae0f44f', $userId, $profile_id ); // link user
+
+        /////////////////////
+
+        //setuser
+
+        update_user_meta( $userId, 'sinkron_data', 'true');
+        update_user_meta( $userId, 'tipe_sinkron', $request ["type"]);
+
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            //'data' => $request ["no_blok"],
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
+
+function home_check($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            's' => $request ["no_rm"],
+            'tax_query' => array(
+                array (
+                    'taxonomy' => 'blok',
+                    'field' => 'slug',
+                    'terms' => $request ["no_blok"],
+                )
+            ),
+        );
+    
+        $posts = get_posts($args);
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => 'failed'
+                //'data' => '',
+            ] );
+        } else {
+            foreach ( $posts as $post ) {
+
+                $ins_data[] = array(  // you can ad anything here and as many as you want
+                    $ins_data[] = array(  // you can ad anything here and as many as you want
+                        'no_rumah' => $post->post_title,
+                        'id_rumah' => $post->ID,
+                    )
+                );
+            }
+
+            return rest_ensure_response( [
+                'status' => true,
+                'message'   => 'success',
+                'data' => $ins_data,
+            ] );
+        }
+
+
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+
+}
 
 
 function user_email($data) {
@@ -948,64 +1115,110 @@ function user_profile() {
         );
 
         $postrm = get_posts($argsrm);
-
+        $iuranUser = array();
         foreach ( $postrm as $rm ) {
             $rmid = $rm->ID;
-        }
+            $rumah =  $rm->post_title;
 
-        $iuranUser = array();
-        $argsiu = array(
-            'post_type' => 'user-iuran',
-            'posts_per_page' => -1,
-            'post_status' => 'publish',
-            'meta_query' => array(
-                array(
-                    'key' => 'creator',
-                    'value' => $userId,
-                    'compare' => 'LIKE'
-                )
-            )
-        );
-
-        $postsiu = get_posts($argsiu);
-
-        foreach ( $postsiu as $iu ) {
-            $lastIPLB = get_field('status_iuran',$iu->ID)['bulan'];
-            $lastIPLT = get_field('status_iuran',$iu->ID)['tahun'];
+            $lastIPLB = get_field('status_iuran',$rmid)['bulan'];
+            $lastIPLT = get_field('status_iuran',$rmid)['tahun'];
+            $count_ipl = get_field('status_iuran',$rmid)['jumlah_ipl_belum_bayar'];
+            $bill_ipl =  get_field('status_ipl',$rmid)['ipl_belum_bayar'];
 
             $lastIPL = $lastIPLB.' '.$lastIPLT;
-            $getIuran = get_field('iuran',$iu->ID);
+            $getIuran = get_field('iuran',$rmid);
             $nominal = '';
 
-            $argsmiu = array(
-                'post_type' => 'iuran',
-                'posts_per_page' => 1,
-                'post_status' => 'publish',
-                'post__in' => [ $getIuran->ID ]
-            );
-
-            $postmiu = get_posts($argsmiu);
-            $iuranCode = '';
-            foreach ( $postmiu as $miu ) {
-                $nominal = get_field( 'nominal', $miu->ID );
-                $iuranCode = get_field( 'kode_iuran', $miu->ID );
-            }
+            $nominal = get_field( 'nominal',$getIuran );
+            $iuranCode = get_field( 'kode_iuran', $getIuran );
 
 
             $iuranUser[] = array(  // you can ad anything here and as many as you want
-                'iuran_link_ID' => $iu->ID,
+                //'iuran_link_ID' => $getIuran,
                 'iuranID' => $getIuran->ID,
                 'iuran_name' => $getIuran->post_title,
                 'iuran_slug' => $getIuran->post_name,
                 'iuran_code' => $iuranCode,
                 'nominal'   =>$nominal,
                 'last_ipl' => $lastIPL,
-                'count_ipl' => get_field( 'status_iuran', $iu->ID )['jumlah_ipl_belum_bayar'],
-                'bill_ipl' => str_replace("\n", ", ",  get_field( 'status_ipl', $iu->ID )['ipl_belum_bayar']),
-                'description' => get_field( 'description', $miu->ID ),
+                'count_ipl' => $count_ipl,
+                'bill_ipl' => $bill_ipl,
+                'description' => get_field( 'description', $getIuran ),
 
             );
         }
+
+        // $iuranUser = array();
+        // $argsiu = array(
+        //     'post_type' => 'user-iuran',
+        //     'posts_per_page' => -1,
+        //     'post_status' => 'publish',
+        //     'meta_query' => array(
+        //         array(
+        //             'key' => 'creator',
+        //             'value' => $userId,
+        //             'compare' => 'LIKE'
+        //         )
+        //     )
+        // );
+
+        // $postsiu = get_posts($argsiu);
+
+        
+
+        // $iuranUser = array();
+        // $argsiu = array(
+        //     'post_type' => 'user-iuran',
+        //     'posts_per_page' => -1,
+        //     'post_status' => 'publish',
+        //     'meta_query' => array(
+        //         array(
+        //             'key' => 'creator',
+        //             'value' => $userId,
+        //             'compare' => 'LIKE'
+        //         )
+        //     )
+        // );
+
+        // $postsiu = get_posts($argsiu);
+
+        // foreach ( $postsiu as $iu ) {
+        //     $lastIPLB = get_field('status_iuran',$iu->ID)['bulan'];
+        //     $lastIPLT = get_field('status_iuran',$iu->ID)['tahun'];
+
+        //     $lastIPL = $lastIPLB.' '.$lastIPLT;
+        //     //$getIuran = get_field('iuran',$iu->ID);
+        //     $nominal = '';
+
+        //     $argsmiu = array(
+        //         'post_type' => 'iuran',
+        //         'posts_per_page' => 1,
+        //         'post_status' => 'publish',
+        //         'post__in' => [ $getIuran->ID ]
+        //     );
+
+        //     $postmiu = get_posts($argsmiu);
+        //     $iuranCode = '';
+        //     foreach ( $postmiu as $miu ) {
+        //         $nominal = get_field( 'nominal', $miu->ID );
+        //         $iuranCode = get_field( 'kode_iuran', $miu->ID );
+        //     }
+
+
+        //     $iuranUser[] = array(  // you can ad anything here and as many as you want
+        //         'iuran_link_ID' => $iu->ID,
+        //         'iuranID' => $getIuran->ID,
+        //         'iuran_name' => $getIuran->post_title,
+        //         'iuran_slug' => $getIuran->post_name,
+        //         'iuran_code' => $iuranCode,
+        //         'nominal'   =>$nominal,
+        //         'last_ipl' => $lastIPL,
+        //         'count_ipl' => get_field( 'status_iuran', $iu->ID )['jumlah_ipl_belum_bayar'],
+        //         'bill_ipl' => str_replace("\n", ", ",  get_field( 'status_ipl', $iu->ID )['ipl_belum_bayar']),
+        //         'description' => get_field( 'description', $miu->ID ),
+
+        //     );
+        // }
 
 
         $taxonomy = 'taxblok';
@@ -1024,24 +1237,19 @@ function user_profile() {
             ] );
         } else {
             foreach ( $posts as $post ) {
-                // $idrm =  $post->ID;
-                // $iplbaru = get_field('status_ipl',$post->ID)['ipl_terbaru'];
-                // $dlast = strtotime($iplbaru);
-                // $datelast = date('F Y', $dlast);
-                // setlocale(LC_CTYPE, 'Indonesian');
-                // setlocale(LC_TIME, 'Indonesian');
-                // $month_name = strftime('%B %Y', $dlast);
-
-
+            
                 $ins_data[] = array(  // you can ad anything here and as many as you want
+                    'profile_id' =>   $post->ID, 
                     'name' => $user->data->display_name,
                     'email' => $user->data->user_email,
-                    'rumah' => get_field('no_rumah', 'user_' . $userId ),
+                    'rumah' => $rumah,
                     'blok' => $blok,
-                    'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
-                    'menetap' => get_field('bulan', 'user_' . $userId ).' '.get_field('tahun', 'user_' . $userId ),
-                    'link_to_profile' => $post->ID,
+                    //'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
+                    //'menetap' => get_field('bulan', 'user_' . $userId ).' '.get_field('tahun', 'user_' . $userId ),
+                    // 'link_to_profile' => $post->ID,
                     'iuran_yang_diikuti' => $iuranUser,
+                    'sync_data' =>  get_field('sinkron_data', 'user_' . $userId ),
+                    'sync_type' =>  get_field('tipe_sinkron', 'user_' . $userId ),
                 );
             }
 
@@ -1213,8 +1421,10 @@ function checkout_md($request) {
             update_field( 'rumah', $rumahID, $post_id );
             update_field( 'iuran', $iuranID, $post_id );
            // update_field( 'link-pembayaran', $snapToken, $post_id );
-            update_field( 'user', $userId, $post_id );
+            update_field( 'keterangan',  $request->get_params()["desc"], $post_id );
+            update_field( 'catatan',  $request->get_params()["notes"], $post_id );
             update_field( 'payment_gateway', 'midtrans', $post_id );
+            update_field( 'user',  $userId, $post_id );
  
         }
 
@@ -1453,40 +1663,20 @@ function md_callback($request) {
 
             $post_id = wp_insert_post($new_post, true);
 
-            // update_field('data_transaksi', array('custom_field1'=>$notif->custom_field1), $post_id);
-            // update_field('data_transaksi', array('custom_field2'=>$notif->custom_field2), $post_id);
-            // update_field('data_transaksi', array('order_id'=>$notif->order_id), $post_id);
-            // update_field('data_transaksi', array('transaction_id'=>$notif->transaction_id), $post_id);
-            // update_field('data_transaksi', array('transaction_time'=>$notif->transaction_time), $post_id);
-            // update_field('data_transaksi', array('transaction_status'=>$notif->transaction_status), $post_id);
-            // update_field('data_transaksi', array('payment_type'=>$notif->payment_type), $post_id);
-            // update_field('data_transaksi', array('gross_amount'=>$notif->gross_amount), $post_id);
-            // update_field('data_transaksi', array('status_message'=>$notif->status_message), $post_id);
-            // update_field('data_transaksi', array('payment_status'=>$message), $post_id);
-
             update_field( 'trx_id', $notif->transaction_id, $post_id );//trxid
-            //update_field( 'link-pembayaran', $response->data->payment_link, $post_id );
             update_field( 'status', $status, $post_id );
-            //update_field( 'total', $notif->gross_amount, $post_id );
-            //update_field( 'jumlah_bulan', $notif->custom_field3, $post_id );
             update_field( 'tanggal_transaksi', $notif->transaction_time, $post_id );
             update_field( 'tanggal_kadaluarsa', $expired_date, $post_id );
             update_field( 'tanggal_bayar', $notif->settlement_time, $post_id );
-            //update_field( 'rumah', $rumahID, $post_id );
-            //update_field( 'iuran', $iuranID, $post_id );
-            //update_field( 'user', $userId, $post_id );
-            //update_field( 'keterangan', $notif->custom_field1, $post_id );
-            //update_field( 'catatan', $notif->custom_field2, $post_id );
+            update_field('payment_type', $type, $post_id);
 
-            //set rumah dan user
-            // update_field( 'rumah_trx', $idrm, $post_id );
-            // update_field( 'user_trx', $userId, $post_id );
-            // update_field( 'jumlah_bayar', $notif->custom_field3, $post_id );
-
-            // if ($type == 'bank_transfer') {
-            //     update_field('data_transaksi', array('bank'=>$bank), $post_id);
-            //     update_field('data_transaksi', array('va_number'=>$va_number), $post_id);
-            // }
+            if ($type == 'bank_transfer') {
+                update_field('bank', $bank, $post_id);
+                update_field('va_number', $va_number, $post_id);
+            } else {
+                update_field('bank',$notif->biller_code, $post_id);
+                update_field('va_number', $notif->bill_key, $post_id);
+            }
 
         } else {
             $new_post = array(
@@ -1503,125 +1693,68 @@ function md_callback($request) {
             $post_id = wp_update_post($new_post);
 
 
-            // update_field('data_transaksi', array('custom_field1'=>$notif->custom_field1), $post_id);
-            // update_field('data_transaksi', array('custom_field2'=>$notif->custom_field2), $post_id);
-            // update_field('data_transaksi', array('order_id'=>$notif->order_id), $post_id);
-            // update_field('data_transaksi', array('transaction_id'=>$notif->transaction_id), $post_id);
-            // update_field('data_transaksi', array('transaction_time'=>$notif->transaction_time), $post_id);
-            // update_field('data_transaksi', array('transaction_status'=>$notif->transaction_status), $post_id);
-            // update_field('data_transaksi', array('payment_type'=>$notif->payment_type), $post_id);
-            // update_field('data_transaksi', array('gross_amount'=>$notif->gross_amount), $post_id);
-            // update_field('data_transaksi', array('status_message'=>$notif->status_message), $post_id);
-            // update_field('data_transaksi', array('payment_status'=>$message), $post_id);
-
-            // update_field( 'rumah_trx', $idrm, $post_id );
-            // update_field( 'user_trx', $userId, $post_id );
-            // update_field( 'jumlah_bayar', $notif->custom_field3, $post_id );
-
-            // if ($type == 'bank_transfer') {
-            //     update_field('data_transaksi', array('bank'=>$bank), $post_id);
-            //     update_field('data_transaksi', array('va_number'=>$va_number), $post_id);
-            // }
+            if ($type == 'bank_transfer') {
+                update_field('bank', $bank, $post_id);
+                update_field('va_number', $va_number, $post_id);
+            } else {
+                update_field('bank',$notif->biller_code, $post_id);
+                update_field('va_number', $notif->bill_key, $post_id);
+            }
 
             update_field( 'trx_id', $notif->transaction_id, $post_id );//trxid
-            //update_field( 'link-pembayaran', $response->data->payment_link, $post_id );
             update_field( 'status',  $status, $post_id );
-           // update_field( 'total', $notif->gross_amount, $post_id );
-           // update_field( 'jumlah_bulan', $notif->custom_field3, $post_id );
             update_field( 'tanggal_transaksi', $notif->transaction_time, $post_id );
             update_field( 'tanggal_kadaluarsa', $notif->expiry_time, $post_id );
             update_field( 'tanggal_bayar', $notif->settlement_time, $post_id );
-            //update_field( 'rumah', $rumahID, $post_id );
-            //update_field( 'iuran', $iuranID, $post_id );
-            //update_field( 'user', $userId, $post_id );
-           // update_field( 'keterangan', $notif->custom_field1, $post_id );
-           // update_field( 'catatan', $notif->custom_field2, $post_id );
-
+            update_field('payment_type', $type, $post_id);
         }
 
 
         if($transaction == 'settlement') {
+            $userId = get_field('user',$post_id);
 
-            $jumlah = get_field('jumlah_bayar', $check_title->ID);
+            $getBulanIuran = get_field('bulan_bayar',$post_id);
 
-            $iplTerbaru = get_field('status_ipl',$idrm)['ipl_terbaru'];
-            $dlast = strtotime($iplTerbaru);
-            $datelast = date('F Y', $dlast);
-
-            $iplTerbaruBayar = date('F Y', strtotime('+'.$jumlah.' months', strtotime($datelast)));
-            $dlast2 = strtotime($iplTerbaruBayar);
-            $datelast2 = date('F Y', $dlast2);
-
-            if ($iplTerbaruBayar) {
-
-                $thisMouth = date('F Y');
-
-                //list bulan belum bayar
-                $start    = new DateTime($datelast);
-                $start->modify('first day of next month');
-                $end      = new DateTime($datelast2);
-                $end->modify('first day of next month');
-                $interval = new DateInterval('P1M');
-                $period   = new DatePeriod($start, $interval, $end);
-
-                $per = [];
-                $i= 0;
-                foreach ($period as $dt) {
-                    $i++;
-                    //echo $dt->format("Y-m") . "<br>\n";
-                    array_push($per, $dt->format("F Y"));
+            if($getBulanIuran) {
+                foreach ($getBulanIuran as $bi) {
+                    $bulanID =  $bi->ID;
+                    $status_bulan = get_field('bulan_iu',$bulanID);
+                    $status_tahun = get_field('tahun_iu',$bulanID);
                 }
+            }
 
-                $listbln = implode("\n",$per);
-                update_field( 'bulan_yang_dibayar', $listbln, $post_id );
+            $argsRM = array(
+                //'post_type' => 'user-iuran',
+                'post_type' => 'rumah',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                    'meta_query' => array(
+                        array(
+                            'key' => 'user',
+                            'value' => $userId,
+                            'compare' => 'LIKE'
+                        )
+                    )
+                );
+            
+                $postsRM = get_posts($argsRM);
+            
+            //now check meta and update taxonomy for every post
+            foreach ( $postsRM as $postRM ) {
+                $RM_id = $postRM->ID;
 
-
-                /**
-                 * set susscess bayar ke rumah
-                 */
-
-                $s = $iplTerbaruBayar;
-                $d = strtotime($s);
-                $date = date('F Y', $d);
-
-                update_field('status_ipl', array('ipl_terbaru'=>$date), $idrm);
-
-                //iplbaru
-                $iplbaruarr = explode(", ", $listbln);
-
-                //list ipl
-                $ipl = get_field('status_ipl', $idrm)['ipl_terbayar'];
-                $iplarr = explode("<br />",$ipl);
-
-
-                $ipltemp = [];
-                foreach ($iplarr as $val) {
-                    array_push($ipltemp, $val);
-                }
-
-                $iplupdate = [];
-                foreach ($iplbaruarr as $val) {
-                    array_push($iplupdate, $val);
-                    array_push($ipltemp, $val);
-                }
-
-                //masukan ipl baru ke list ipl
-                foreach ($iplarr as $val) {
-                    array_push($iplupdate, $val);
-                }
-
-                $value = implode("\n",$ipltemp);
-                update_field('status_ipl', array('ipl_terbayar'=>$value), $idrm);
-
-                //update fild rumah
-
-                $iplbaru = get_field('status_ipl',$idrm)['ipl_terbaru'];
-                $dlast = strtotime($iplbaru);
+                update_field('status_iuran', array('bulan'=>$status_bulan), $RM_id);
+                update_field('status_iuran', array('tahun'=>$status_tahun), $RM_id);
+        
+                $lastIPLB = get_field('status_iuran',$RM_id)['bulan'];
+                $lastIPLT = get_field('status_iuran',$RM_id)['tahun'];
+                $lastIPL = $lastIPLB.' '.$lastIPLT;
+        
+                $dlast = strtotime($lastIPL);
                 $datelast = date('F Y', $dlast);
-
-
+        
                 $thisMouth = date('F Y');
-
+        
                 //list bulan belum bayar
                 $start    = new DateTime($datelast);
                 $start->modify('first day of next month');
@@ -1629,27 +1762,37 @@ function md_callback($request) {
                 $end->modify('first day of next month');
                 $interval = new DateInterval('P1M');
                 $period   = new DatePeriod($start, $interval, $end);
-
+        
+                $thisMouth = date('F Y');
+        
+                //list bulan belum bayar
+                $start    = new DateTime($datelast);
+                $start->modify('first day of next month');
+                $end      = new DateTime($thisMouth);
+                $end->modify('first day of next month');
+                $interval = new DateInterval('P1M');
+                $period   = new DatePeriod($start, $interval, $end);
+        
                 $per = [];
                 $i= 0;
                 foreach ($period as $dt) {
                     $i++;
                     //echo $dt->format("Y-m") . "<br>\n";
-                    array_push($per, $dt->format("F Y"));
+                    array_push($per, $dt->format("F | Y"));
                 }
-
+        
                 $listbln = implode("\n",$per);
-                update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $idrm);
-
+                update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $RM_id);
+        
                 //num ipl lum bayar
-                update_field('status_ipl', array('jumlah_ipl_belum_bayar'=>$i), $idrm);
+                update_field('status_iuran', array('jumlah_ipl_belum_bayar'=>$i), $RM_id);
             }
         }
 
         return rest_ensure_response( [
             'status' => true,
             'message'   =>$message,
-            // 'order_id' => get_field('address', 'user_' . $userId )->post_title,
+            //'bulan' => $status_tahun ,
             //'snapToken' => $snapToken,
         ] );
 
@@ -1984,12 +2127,13 @@ function user_iuran($request) {
         $code = $request ["code"];
 
         $argsiu = array(
-            'post_type' => 'user-iuran',
-            'posts_per_page' => -1,
+            //'post_type' => 'user-iuran',
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
             'post_status' => 'publish',
             'meta_query' => array(
                 array(
-                    'key' => 'creator',
+                    'key' => 'user',
                     'value' => $userId,
                     'compare' => 'LIKE'
                 )
@@ -2498,6 +2642,13 @@ function transaction_list($req) {
             foreach ($bulan_bayar as $val) {
                 array_push($bulan_bayar_arr, get_the_title( $val->ID) );
             }
+
+
+            $dataUser =  array(
+                'name' => $user->data->display_name,
+                'email' => $user->data->user_email,
+            );
+
             $ins_data[] = array(  // you can ad anything here and as many as you want
                 'ID' => $post->ID,
                 'invoice' => $post->post_title,
@@ -2512,6 +2663,10 @@ function transaction_list($req) {
                 'description' => get_field( 'keterangan', $post->ID),
                 'notes' => get_field( 'catatan', $post->ID),
                 'payment_gateway' => get_field( 'payment_gateway', $post->ID),
+                'user' => $dataUser,
+                'payment_type' => get_field( 'payment_type', $post->ID),
+                'va_number' => get_field( 'va_number', $post->ID),
+                'bank' => get_field( 'bank', $post->ID),
 
             );
             $i++;

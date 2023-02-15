@@ -24,12 +24,12 @@ function update_homeID($post_id) {
 
     //set kode iuran
 
-    $iuranID = get_field('field_6340883b5484c', $post_id);
-    if (get_post_type($post_id) =='iuran') {
-        if (empty($iuranID)) {
-            update_field('field_6340883b5484c',$key_start.'IU'.$key_end , $post_id);
-        }
-    }
+    // $iuranID = get_field('field_6340883b5484c', $post_id);
+    // if (get_post_type($post_id) =='iuran') {
+    //     if (empty($iuranID)) {
+    //         update_field('field_6340883b5484c',$key_start.'IU'.$key_end , $post_id);
+    //     }
+    // }
 
     ////////////////////
 
@@ -38,79 +38,79 @@ function update_homeID($post_id) {
    // $date = date('F Y', $d);
     $date = '';
 
-    // function untuk ipl terbayar
-    if ($date) {
-        //update ipl terbaru
-        update_field('status_ipl', array('ipl_terbaru'=>$date), $post_id);
+    // // function untuk ipl terbayar
+    // if ($date) {
+    //     //update ipl terbaru
+    //     update_field('status_ipl', array('ipl_terbaru'=>$date), $post_id);
 
-        //iplbaru
-        $iplbaru = get_field('status_ipl',$post_id)['ipl_terbaru'];
-        $iplbaruarr = explode(", ", $iplbaru);
+    //     //iplbaru
+    //     $iplbaru = get_field('status_ipl',$post_id)['ipl_terbaru'];
+    //     $iplbaruarr = explode(", ", $iplbaru);
 
-        //list ipl
-        $ipl = get_field('status_ipl', $post_id)['ipl_terbayar'];
-        $iplarr = explode("<br />",$ipl);
+    //     //list ipl
+    //     $ipl = get_field('status_ipl', $post_id)['ipl_terbayar'];
+    //     $iplarr = explode("<br />",$ipl);
 
-        $ipltemp = [];
-        foreach ($iplarr as $val) {
-            array_push($ipltemp, $val);
-        }
+    //     $ipltemp = [];
+    //     foreach ($iplarr as $val) {
+    //         array_push($ipltemp, $val);
+    //     }
 
-        $iplupdate = [];
-        foreach ($iplbaruarr as $val) {
-            array_push($iplupdate, $val);
-            array_push($ipltemp, $val);
-        }
+    //     $iplupdate = [];
+    //     foreach ($iplbaruarr as $val) {
+    //         array_push($iplupdate, $val);
+    //         array_push($ipltemp, $val);
+    //     }
 
-        //masukan ipl baru ke list ipl
-        foreach ($iplarr as $val) {
-            array_push($iplupdate, $val);
-        }
+    //     //masukan ipl baru ke list ipl
+    //     foreach ($iplarr as $val) {
+    //         array_push($iplupdate, $val);
+    //     }
 
-        $value = implode("\n",$ipltemp);
-        update_field('status_ipl', array('ipl_terbayar'=>$value), $post_id);
-    }
+    //     $value = implode("\n",$ipltemp);
+    //     update_field('status_ipl', array('ipl_terbayar'=>$value), $post_id);
+    // }
 
-    // fungtion update ipl
-    $lastIPLB = get_field('status_iuran',$post_id)['bulan'];
-    $lastIPLT = get_field('status_iuran',$post_id)['tahun'];
-    $lastIPL = $lastIPLB.' '.$lastIPLT;
-    $dlast = strtotime($lastIPL);
-    $datelast = date('F Y', $dlast);
+    // // fungtion update ipl
+    // $lastIPLB = get_field('status_iuran',$post_id)['bulan'];
+    // $lastIPLT = get_field('status_iuran',$post_id)['tahun'];
+    // $lastIPL = $lastIPLB.' '.$lastIPLT;
+    // $dlast = strtotime($lastIPL);
+    // $datelast = date('F Y', $dlast);
 
-    //update ipl terbaru
-    //update_field('status_ipl', array('ipl_terbaru'=>$datelast), $post_id);
+    // //update ipl terbaru
+    // //update_field('status_ipl', array('ipl_terbaru'=>$datelast), $post_id);
 
-    $iplbaru = $lastIPL;
-    $dlast = strtotime($iplbaru);
-    $datelast = date('F Y', $dlast);
+    // $iplbaru = $lastIPL;
+    // $dlast = strtotime($iplbaru);
+    // $datelast = date('F Y', $dlast);
 
 
-    $thisMouth = date('F Y');
+    // $thisMouth = date('F Y');
 
-    //list bulan belum bayar
-    $start    = new DateTime($datelast);
-    $start->modify('first day of next month');
-    $end      = new DateTime($thisMouth);
-    $end->modify('first day of next month');
-    $interval = new DateInterval('P1M');
-    $period   = new DatePeriod($start, $interval, $end);
+    // //list bulan belum bayar
+    // $start    = new DateTime($datelast);
+    // $start->modify('first day of next month');
+    // $end      = new DateTime($thisMouth);
+    // $end->modify('first day of next month');
+    // $interval = new DateInterval('P1M');
+    // $period   = new DatePeriod($start, $interval, $end);
 
-    $per = [];
-    $i= 0;
-    foreach ($period as $dt) {
-        $i++;
-        //echo $dt->format("Y-m") . "<br>\n";
-        array_push($per, $dt->format("F | Y"));
+    // $per = [];
+    // $i= 0;
+    // foreach ($period as $dt) {
+    //     $i++;
+    //     //echo $dt->format("Y-m") . "<br>\n";
+    //     array_push($per, $dt->format("F | Y"));
 
-    }
+    // }
 
-    $listbln = implode("\n",$per);
+    // $listbln = implode("\n",$per);
 
-    update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $post_id);
+    // update_field('status_ipl', array('ipl_belum_bayar'=>$listbln), $post_id);
 
-    //num ipl lum bayar
-    update_field('status_iuran', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
+    // //num ipl lum bayar
+    // update_field('status_iuran', array('jumlah_ipl_belum_bayar'=>$i), $post_id);
 
 }
 
@@ -173,7 +173,8 @@ function update_homeID($post_id) {
 
 function run_update_ipl() {
     $args = array(
-    'post_type' => 'user-iuran',
+    //'post_type' => 'user-iuran',
+    'post_type' => 'rumah',
     'posts_per_page' => -1,
     'post_status' => 'publish',
 
