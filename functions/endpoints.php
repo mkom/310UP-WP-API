@@ -208,8 +208,71 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1/home/', 'blok/(?P<blok>[^/]+)',array(
+            'methods'  => 'GET',
+            'callback' => 'home_searchByblok',
+            'permission_callback' => '__return_true',
+        ));
+
     }
 );
+
+function home_searchByblok ($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+            'orderby' => 'title', 
+            'order' => 'ASC',
+            'tax_query' => array(
+                array (
+                    'taxonomy' => 'taxblok',
+                    'field' => 'name',
+                    'terms' => $request ["blok"],
+                )
+            ),
+        );
+    
+        $posts = get_posts($args);
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => 'failed'
+                //'data' => '',
+            ] );
+        } else {
+            foreach ( $posts as $post ) {
+
+                $ins_data[] = array(  // you can ad anything here and as many as you want
+                    'no_rumah' => $post->post_title,
+                    'id_rumah' => $post->ID,
+                    'blok'     => $request ["blok"], 
+                );
+            }
+
+            return rest_ensure_response( [
+                'status' => true,
+                'message'   => 'success',
+                'data' => $ins_data,
+            ] );
+        }
+
+
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
 
 function home_sync($request) {
     $currentuserid_fromjwt = get_current_user_id();
@@ -324,7 +387,7 @@ function home_check($request) {
             's' => $request ["no_rm"],
             'tax_query' => array(
                 array (
-                    'taxonomy' => 'blok',
+                    'taxonomy' => 'taxblok',
                     'field' => 'slug',
                     'terms' => $request ["no_blok"],
                 )
@@ -1178,8 +1241,9 @@ function user_profile() {
             $iuranUser[] = array(  // you can ad anything here and as many as you want
                 //'iuran_link_ID' => $getIuran,
                 'iuranID' => $getIuran->ID,
-                'iuran_name' => $getIuran->post_title,
-                'iuran_slug' => $getIuran->post_name,
+                'rumahID' => $rmid,
+                'iuran_name' => get_the_title($getIuran),
+                'iuran_slug' => get_post($getIuran)->post_name,
                 'iuran_code' => $iuranCode,
                 'nominal'   =>$nominal,
                 'last_ipl' => $lastIPL,
@@ -1228,7 +1292,7 @@ function user_profile() {
                 'status' => true,
                 'message'   => 'success',
                 'data' => $ins_data,
-                'test' => $getIuran,
+                //'test' => $getIuran,
             ] );
         }
 
@@ -2578,8 +2642,8 @@ function transaction_list($req) {
                     ),
                     array(
                         'key' => 'status',
-                        'value' => 'hold',
-                        'compare' => 'NOT LIKE'
+                        'value' => array ( 'pending', 'success', 'expired'),
+                        'compare' => 'IN'
                     ),
                 )
             );
@@ -2596,8 +2660,8 @@ function transaction_list($req) {
                     ),
                     array(
                         'key' => 'status',
-                        'value' => 'hold',
-                        'compare' => 'NOT LIKE'
+                        'value' => array ( 'pending', 'success', 'expired'),
+                        'compare' => 'IN'
                     ),
                 )
             );
@@ -2614,8 +2678,8 @@ function transaction_list($req) {
                     ),
                     array(
                         'key' => 'status',
-                        'value' => 'hold',
-                        'compare' => 'NOT LIKE’'
+                        'value' => array ( 'pending', 'success', 'expired'),
+                        'compare' => 'IN'
                     ),
                 )
             );
@@ -2731,11 +2795,12 @@ function report($request) {
             $trx[] = array(  // you can ad anything here and as many as you want
                 'ID' => $post->ID,
                 'invoice' => $post->post_title,
-                //'iuran_name' => get_field( 'iuran', $post->ID)->post_title,
+                //'rumah' => get_field( 'rumah', $post->ID)->post_title,
                 'status' =>  get_field( 'status', $post->ID),
                 'nominal' => intval(get_field( 'total', $post->ID)),
                 'tgl_trx' => get_field( 'tanggal_transaksi', $post->ID),
                 'bulan' => $ipltemp,
+                
             );
             $sum+= get_field( 'total', $post->ID);
             $name_iuran =get_field( 'iuran', $post->ID)->post_title;
@@ -2747,6 +2812,7 @@ function report($request) {
             'name' => $name_iuran,
             'total' => $sum,
             'transaction' => $trx,
+            
 
         );
 
@@ -2777,20 +2843,24 @@ function report_iuran_iuran($request) {
             'meta_query' => array(
                 'relation'      => 'AND',
                 array(
-                    'key' => 'iuran',
+                    'key' => 'rumah',
                     'value' => $ID,
                     //'compare' => 'LIKE'
                 ),
                 array(
                     'key' => 'status',
-                    'value' => 'success',
-                    'compare' => '='
-                ),
-                array(
-                    'key' => 'user',
-                    'value' => $userID,
-                    'compare' => 'LIKE'
+                    // 'value' => 'success',
+                    // 'compare' => '='
+                    'value' => array ( 'success', 'tbd'),
+                    'compare' => 'IN'
                 )
+                
+                // ,
+                // array(
+                //     'key' => 'user',
+                //     'value' => $userID,
+                //     'compare' => 'LIKE'
+                // )
             )
         );
     
@@ -2817,7 +2887,13 @@ function report_iuran_iuran($request) {
 
                 foreach( $bulan_bayar as $post_bulan) {
                     //array_push($iuranBayar, 'Bulan');
-                    $iuranBayar[] = array('bulan' => get_field( 'bulan_iu', $post_bulan->ID), 'tahun' => get_field( 'tahun_iu', $post_bulan->ID), 'id_trx' => $post->post_title,  'tgl_trx' => get_field( 'tanggal_transaksi', $post->ID));
+                    $iuranBayar[] = array(
+                        'bulan' => get_field( 'bulan_iu', $post_bulan->ID),
+                        'tahun' => get_field( 'tahun_iu', $post_bulan->ID),
+                        'id_trx' => $post->post_title,  
+                        'tgl_trx' => get_field( 'tanggal_transaksi', $post->ID),
+                        'rumah' => get_field( 'rumah', $post->ID)->post_title
+                    );
                 }
     
                 $trx[] = array(  // you can ad anything here and as many as you want
@@ -2828,6 +2904,7 @@ function report_iuran_iuran($request) {
                     'nominal' => intval(get_field( 'total', $post->ID)),
                     'tgl_trx' => get_field( 'tanggal_transaksi', $post->ID),
                     'iuran' => $iuranBayar,
+                    
                 );
     
                 $bln[] = $iuranBayar;
