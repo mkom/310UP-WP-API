@@ -34,6 +34,7 @@ add_action(
         register_rest_route( 'cs/v1', 'send_verify', array(
             'methods'             => 'POST',
             'callback'            => 'send_verify',
+            'args' => array(),
             'permission_callback' => '__return_true',
         ) );
 
@@ -214,8 +215,77 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1/', 'getiuran/(?P<blok>[^/]+)',array(
+            'methods'  => 'GET',
+            'callback' => 'getiuran',
+            'permission_callback' => '__return_true',
+        ));
+
     }
 );
+
+function getiuran ($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+         //get iuran
+         $argsiu = array(
+            'post_type' => 'iuran',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'kode_iuran',
+                    'value' => 'TDPIU06C',
+                    //'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $postsiu = get_posts($argsiu);
+        foreach ( $postsiu as $postiu ) {
+            $iuranID =  $postiu->ID;
+            $iuransku =  str_replace(" ", "",  $postiu->post_title);
+            $iuranName =  $postiu->post_title;
+            $nominal = get_field( 'nominal', $postiu->ID );
+            $IDiu = get_field( 'jenis_iuran', $postiu->ID );
+            $lastIPL = get_field('berlaku', $postiu->ID)['bulan'].' '.get_field('berlaku', $postiu->ID)['tahun'];
+            $count_ipl = 2;
+        }
+
+        $ins_data[] = array(  // you can ad anything here and as many as you want
+            //'iuran_link_ID' => $getIuran,
+            'iuranID' =>  $iuranID->ID,
+            // 'rumahID' => $rmid,
+            'iuran_name' => get_the_title($iuranID),
+            'iuran_slug' => get_post($iuranID)->post_name,
+            'iuran_code' => $request ["codeiu"],
+            'nominal'   =>$nominal,
+            'last_ipl' => $lastIPL,
+            'count_ipl' => $count_ipl,
+            // 'bill_ipl' => $bill_ipl,
+            'description' => get_field( 'description', $iuranID ),
+
+        );
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            'data' => $ins_data
+        ] );
+
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
 
 function home_searchByblok ($request) {
     $currentuserid_fromjwt = get_current_user_id();
