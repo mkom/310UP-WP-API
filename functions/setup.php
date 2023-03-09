@@ -16,11 +16,11 @@ function update_homeID($post_id) {
 
     $homeID = get_field('field_63222fff6bb1d', $post_id);
 
-    if (get_post_type($post_id) =='rumah') {
-        if (empty($homeID)) {
-            update_field('field_63222fff6bb1d',$key_start.$title.$key_end , $post_id);
-        }
-    }
+    // if (get_post_type($post_id) =='rumah') {
+    //     if (empty($homeID)) {
+    //         update_field('field_63222fff6bb1d',$key_start.$title.$key_end , $post_id);
+    //     }
+    // }
 
     //set kode iuran
 

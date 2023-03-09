@@ -56,11 +56,6 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
-        register_rest_route( 'cs/v1', 'ads',array(
-            'methods'  => 'GET',
-            'callback' => 'rest_get_ads',
-            'permission_callback' => '__return_true',
-        ));
 
         register_rest_route( 'cs/v1', 'news',array(
             'methods'  => 'GET',
@@ -68,11 +63,6 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
-        register_rest_route( 'cs/v1', 'events',array(
-            'methods'  => 'GET',
-            'callback' => 'rest_get_events',
-            'permission_callback' => '__return_true',
-        ));
 
         register_rest_route( 'cs/v1', 'iuran_code',array(
             'methods'  => 'POST',
@@ -117,6 +107,12 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1', 'profile',array(
+            'methods'  => 'GET',
+            'callback' => 'user_profileV2',
+            'permission_callback' => '__return_true',
+        ));
+
         register_rest_route( 'cs/v1', 'user_check',array(
             'methods'  => 'GET',
             'callback' => 'user_check',
@@ -148,12 +144,6 @@ add_action(
             'callback' => 'status',
             'permission_callback' => '__return_true',
         ));
-
-        // register_rest_route( 'cs/v1', 'transaction',array(
-        //     'methods'  => 'GET',
-        //     'callback' => 'transaction_list',
-        //     'permission_callback' => '__return_true',
-        // ));
 
         register_rest_route( 'cs/v1/moota/', 'checkout',array(
             'methods'  => 'POST',
@@ -221,8 +211,76 @@ add_action(
             'permission_callback' => '__return_true',
         ));
 
+        register_rest_route( 'cs/v1/', 'check_profile/',array(
+            'methods'  => 'GET',
+            'callback' => 'check_profile',
+            'permission_callback' => '__return_true',
+        ));
+
+
+
     }
 );
+
+function check_profile ($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+         //get warga
+         $args = array(
+            'post_type' => 'warga',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user_full',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => 'failed'
+                //'data' => '',
+            ] );
+        } else {
+        
+            $ins_data[] = array(  // you can ad anything here and as many as you want
+                'name' => $user->data->display_name,
+                'email' => $user->data->user_email,
+                'noWA' =>  get_field('phone_number', 'user_' . $userId ),
+                //'jenis_kelamin' =>  get_field('data_pribadi', 'user_' . $userId )['jenis_kelamin'],
+                //'agama' =>  get_field('data_pribadi', 'user_' . $userId )['agama'],
+                //'rumah'
+                //'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
+                'bulan' => get_field('bulan', 'user_' . $userId ),
+                'tahun' =>get_field('tahun', 'user_' . $userId ),
+
+            );
+
+            return rest_ensure_response( [
+                'status' => true,
+                'message'   => 'success',
+                'data' => $ins_data,
+            ] );
+        }
+
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
 
 function getiuran ($request) {
     $currentuserid_fromjwt = get_current_user_id();
@@ -294,7 +352,7 @@ function home_searchByblok ($request) {
         $user = get_user_by( 'id', $currentuserid_fromjwt);
         $userId = $user->ID;
         $ins_data = array();
-
+        
         $args = array(
             'post_type' => 'rumah',
             'posts_per_page' => -1,
@@ -344,7 +402,7 @@ function home_searchByblok ($request) {
     }
 }
 
-function home_sync($request) {
+function home_syncOLD($request) {
     $currentuserid_fromjwt = get_current_user_id();
 
     if ($currentuserid_fromjwt != 0) {
@@ -442,6 +500,88 @@ function home_sync($request) {
     }
 }
 
+function home_sync($request) {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        //set rumah
+
+        $args = array(
+            'post_type' => 'rumah',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'post__in' => array( $request ["no_rm"] ),
+            'meta_query' => array(
+                array(
+                    'key' => 'id_rumah',
+                    'value' => $request ["coderm"],
+                )
+            )
+        );
+    
+        $posts = get_posts($args);
+        if ( empty( $posts ) ) {
+            return rest_ensure_response( [
+                'status' => false,
+                'message'   => 'failed'
+                //'data' => '',
+            ] );
+        } else {
+
+            foreach ( $posts as $post ) {
+               $homeId = $post->ID;
+            };
+
+            //set user ke rumah
+            update_field('user', $userId, $homeId);
+
+
+            //set rumah ke user
+            $args2 = array(
+                'post_type' => 'warga',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                'meta_query' => array(
+                    array(
+                        'key' => 'user_full',
+                        'value' => $userId,
+                        'compare' => 'LIKE'
+                    )
+                )
+            );
+
+            $posts2 = get_posts($args2);
+            
+            foreach ( $posts2 as $post2 ) {
+                $wargaId = $post2->ID;
+            };
+
+            update_field('no_rumah', $homeId, $wargaId);
+
+            //create user iuran
+
+
+
+            return rest_ensure_response( [
+                'status' => true,
+                'message'   => 'success',
+                //'data' => $ins_data,
+            ] );
+        }
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+}
+
+
 function home_check($request) {
     $currentuserid_fromjwt = get_current_user_id();
 
@@ -454,14 +594,15 @@ function home_check($request) {
             'post_type' => 'rumah',
             'posts_per_page' => 1,
             'post_status' => 'publish',
-            's' => $request ["no_rm"],
-            'tax_query' => array(
-                array (
-                    'taxonomy' => 'taxblok',
-                    'field' => 'slug',
-                    'terms' => $request ["no_blok"],
-                )
-            ),
+            //'p' => $request ["no_rm"],
+            'post__in' => array( $request ["no_rm"] )
+            // 'tax_query' => array(
+            //     array (
+            //         'taxonomy' => 'taxblok',
+            //         'field' => 'slug',
+            //         'terms' => $request ["no_blok"],
+            //     )
+            // ),
         );
     
         $posts = get_posts($args);
@@ -475,12 +616,11 @@ function home_check($request) {
             foreach ( $posts as $post ) {
 
                 $ins_data[] = array(  // you can ad anything here and as many as you want
-                    $ins_data[] = array(  // you can ad anything here and as many as you want
-                        'no_rumah' => $post->post_title,
-                        'id_rumah' => $post->ID,
-                    )
+                    'no_rumah' => $post->post_title,
+                    'id_rumah' => $post->ID,
+                    'p' =>  $request ["no_rm"]
                 );
-            }
+            };
 
             return rest_ensure_response( [
                 'status' => true,
@@ -930,55 +1070,42 @@ function login_user($request) {
     }
 }
 
-function rest_get_ads() {
-    $args = array(
-        'post_type' => 'ads',
-        'posts_per_page' => -1,
-        'post_status' => 'publish',
-    );
+function rest_get_news($req) {
+    $limit = $req['limit'];
+    $slug = $req['slug'];
+    if($limit) {
+        $args = array(
+            'post_type' => 'post',
+            'posts_per_page' => $limit,
+            'post_status' => 'publish',
+        );
+    } else if($slug) {
+        $args = array(
+            'post_type' => 'post',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'post_name__in' => array($slug),
+        );
+    } 
+    
+    else {
+        $args = array(
+            'post_type' => 'post',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+        );
+    }
+    
 
     $posts = get_posts($args);
 
     if ( empty( $posts ) ) {
         return rest_ensure_response( [
             'status' => false,
-            'message'   => 'data not found'
+             'message'   => 'failed'
         ] );
     }
-    $ins_data = array();
-    $i = 0;
 
-    foreach ( $posts as $post ) {
-        $ins_data[] = array(  // you can ad anything here and as many as you want
-            'id' => $posts[$i]->ID,
-            'slug' => $posts[$i]->post_name,
-            'title' => $posts[$i]->post_title,
-            'image' => get_field( 'ads_image', $posts[$i]->ID )['url'],
-        );
-        $i++;
-    }
-
-
-    // Returned Data
-    $response = new WP_REST_Response($ins_data);
-    $response->set_status(200);
-    return $response;
-}
-
-function rest_get_news() {
-    $args = array(
-        'post_type' => 'post',
-        'posts_per_page' => -1,
-        'post_status' => 'publish',
-    );
-
-    $posts = get_posts($args);
-
-    if ( empty( $posts ) ) {
-        return rest_ensure_response( [
-            'msg'   => 'data not found'
-        ] );
-    }
     $ins_data = array();
     $i = 0;
 
@@ -999,51 +1126,13 @@ function rest_get_news() {
     }
 
 
-    // Returned Data
-    $response = new WP_REST_Response($ins_data);
-    $response->set_status(200);
-    return $response;
+    return rest_ensure_response( [
+        'status' => true,
+        'message'   => 'success',
+        'data' => $ins_data,
+    ] );
 }
 
-function rest_get_events() {
-    $args = array(
-        'post_type' => 'event',
-        'posts_per_page' => -1,
-        'post_status' => 'publish',
-    );
-
-    $posts = get_posts($args);
-
-    if ( empty( $posts ) ) {
-        return rest_ensure_response( [
-            'msg'   => 'data not found'
-        ] );
-    }
-    $ins_data = array();
-    $i = 0;
-
-    foreach ( $posts as $post ) {
-        $ins_data[] = array(  // you can ad anything here and as many as you want
-            'id' => $posts[$i]->ID,
-            'slug' => $posts[$i]->post_name,
-            'title' => $posts[$i]->post_title,
-            'image' => get_field( 'event_image', $posts[$i]->ID )['url'],
-            'start_date' => get_field( 'event_date', $posts[$i]->ID )['event_start'],
-            'end_date' => get_field( 'event_date', $posts[$i]->ID )['event_end'],
-            'location' => get_field( 'event_location', $posts[$i]->ID ),
-            'address' => get_field( 'event_address', $posts[$i]->ID ),
-            'price' => get_field( 'event_price', $posts[$i]->ID ),
-            'description' => get_field( 'event_description', $posts[$i]->ID ),
-        );
-        $i++;
-    }
-
-
-    // Returned Data
-    $response = new WP_REST_Response($ins_data);
-    $response->set_status(200);
-    return $response;
-}
 
 function verify_resident($request) {
     $currentuserid_fromjwt = get_current_user_id();
@@ -1141,6 +1230,9 @@ function set_profile($request) {
         $bulan = $request ["bulan"];
         $tahun = $request ["tahun"];
         $blok = $request ["blok"];
+        $agama = $request ["agama"];
+        $jk= $request ["jk"];
+
 
 
         //update user
@@ -1158,61 +1250,16 @@ function set_profile($request) {
         update_user_meta( $userId, 'tahun',  $tahun);
 
 
-        //create rumah
-        $check_title = get_page_by_title($norumah, 'OBJECT', 'rumah');
-
-        $new_post = array(
-            'post_title' => $norumah,
-            'post_status' => 'publish',
-            'post_date' => date('Y-m-d H:i:s'),
-            //'post_author' => $userId,
-            'post_type' => 'rumah',
-        );
-
-        if(empty($check_title)) {
-            $post_id = wp_insert_post($new_post, true );
-
-        } else {
-            $args = array(
-                'post_type' => 'rumah',
-                'posts_per_page' => 1,
-                'post_status' => 'publish',
-                's' => $norumah,
-            );
-            $posts = get_posts($args);
-
-            foreach ( $posts as $post ) {
-                $post_id = $post->ID;
-
-            }
-        }
-        //update user address
-        update_user_meta( $userId, 'address',  $post_id);
-        $current_user = get_field( 'field_63270532649ec', $post_id );
-        if($current_user) {
-            array_push($current_user, $userId);
-        } else {
-            $current_user = $userId;
-        }
-
-        // set rumah
-        update_field( 'field_63270532649ec', $current_user, $post_id );
-
-        $taxonomy = 'taxblok';
-        $termObj  = get_term_by( 'name', $blok, $taxonomy);
-        $term_id = $termObj->term_id;
-        wp_set_object_terms($post_id, intval( $term_id ), $taxonomy);
-
-        //create user profile
-        $userProfileTitle = 'user'.$userId.'-'.$nama;
-        $userProfile= get_page_by_title($userProfileTitle, 'OBJECT', 'user-profile');
+        //create post warga
+        $userProfileTitle = $nama;
+        $userProfile= get_page_by_title($userProfileTitle, 'OBJECT', 'warga');
 
         $new_post_profile = array(
             'post_title' => $userProfileTitle,
             'post_status' => 'publish',
             'post_date' => date('Y-m-d H:i:s'),
             //'post_author' => $userId,
-            'post_type' => 'user-profile',
+            'post_type' => 'warga',
         );
 
 
@@ -1220,7 +1267,7 @@ function set_profile($request) {
             $profile_id = wp_insert_post($new_post_profile, true );
         } else {
             $args = array(
-                'post_type' => 'user-profile',
+                'post_type' => 'warga',
                 'posts_per_page' => 1,
                 'post_status' => 'publish',
                 's' => $userProfileTitle,
@@ -1233,13 +1280,19 @@ function set_profile($request) {
             }
         }
 
-        update_field( 'field_633c73ae0f44f', $userId, $profile_id ); // link user
+        update_field('data_pribadi', array('nama_lengkap'=>$nama), $profile_id);
+        update_field('data_pribadi', array('jenis_kelamin'=>$jk), $profile_id);
+        update_field('data_pribadi', array('agama'=>$agama), $profile_id);
+        update_field('data_pribadi', array('no_wa'=>$phone), $profile_id);
+        update_field('bulan_menetap', array('bulan'=>$bulan), $profile_id);
+        update_field('bulan_menetap', array('tahun'=>$tahun), $profile_id);
 
+        update_field('user_full', $userId, $profile_id);
 
         return rest_ensure_response( [
             'status' => true,
             'message'   => 'success',
-            //'data' => $check_title,
+             'data' =>  $profile_id,
         ] );
 
     } else {
@@ -1251,6 +1304,59 @@ function set_profile($request) {
 
 }
 
+function user_profileV2() {
+    $currentuserid_fromjwt = get_current_user_id();
+
+    if ($currentuserid_fromjwt != 0) {
+        $user = get_user_by( 'id', $currentuserid_fromjwt);
+        $userId = $user->ID;
+        $ins_data = array();
+
+        $args = array(
+            'post_type' => 'warga',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => 'user_full',
+                    'value' => $userId,
+                    'compare' => 'LIKE'
+                )
+            )
+        );
+
+        $posts = get_posts($args);
+
+        $ins_data[] = array(  // you can ad anything here and as many as you want
+            'name' => $user->data->display_name,
+            'email' => $user->data->user_email,
+            'noWA' =>  get_field('phone_number', 'user_' . $userId ),
+            //'jenis_kelamin' =>  get_field('data_pribadi', 'user_' . $userId )['jenis_kelamin'],
+            //'agama' =>  get_field('data_pribadi', 'user_' . $userId )['agama'],
+            'rumah' => $posts ,
+            //'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
+            'bulan' => get_field('bulan', 'user_' . $userId ),
+            'tahun' =>get_field('tahun', 'user_' . $userId ),
+
+        );
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            'data' => $ins_data,
+            //'test' => $getIuran,
+        ] );
+
+    } else {
+        return rest_ensure_response( [
+            'status' => false,
+            'message'   => 'Invalid token'
+        ] );
+    }
+
+}
+
+
 function user_profile() {
     $currentuserid_fromjwt = get_current_user_id();
 
@@ -1260,7 +1366,7 @@ function user_profile() {
         $ins_data = array();
 
         $args = array(
-            'post_type' => 'user-profile',
+            'post_type' => 'warga',
             'posts_per_page' => 1,
             'post_status' => 'publish',
             'meta_query' => array(
@@ -1295,12 +1401,44 @@ function user_profile() {
             $rmid = $rm->ID;
             $rumah =  $rm->post_title;
 
-            $lastIPLB = get_field('status_iuran',$rmid)['bulan'];
-            $lastIPLT = get_field('status_iuran',$rmid)['tahun'];
-            $count_ipl = get_field('status_iuran',$rmid)['jumlah_ipl_belum_bayar'];
-            $bill_ipl =  get_field('status_ipl',$rmid)['ipl_belum_bayar'];
+            // $lastIPLB = get_field('status_iuran',$rmid)['bulan'];
+            // $lastIPLT = get_field('status_iuran',$rmid)['tahun'];
+            // $count_ipl = get_field('status_iuran',$rmid)['jumlah_ipl_belum_bayar'];
+            // $bill_ipl =  get_field('status_ipl',$rmid)['ipl_belum_bayar'];
 
-            $lastIPL = $lastIPLB.' '.$lastIPLT;
+            if(!empty(get_field('status_iuran',$rmid)['bulan'])) {
+                $lastIPLB = get_field('status_iuran',$rmid)['bulan'];
+            } else {
+                $lastIPLB = ' ';
+            }
+
+            if(!empty(get_field('status_iuran',$rmid)['tahun'])) {
+                $lastIPLT = get_field('status_iuran',$rmid)['tahun'];
+            } else {
+                $lastIPLT = ' ';
+            }
+
+            if(!empty(get_field('status_iuran',$rmid)['jumlah_ipl_belum_bayar'])) {
+                $count_ipl = get_field('status_iuran',$rmid)['jumlah_ipl_belum_bayar'];
+            } else {
+                $count_ipl = ' ';
+            }
+
+            if(!empty(get_field('status_iuran',$rmid)['bulan'])) {
+                $bill_ipl =  get_field('status_ipl',$rmid)['ipl_belum_bayar'];
+            } else {
+                $bill_ipl =  ' ';
+            }
+         
+            if(!empty(get_field('status_iuran',$rmid)['tahun'])) {
+                $lastIPL = $lastIPLB.' '.$lastIPLT;
+            } else {
+                $lastIPL = '';
+            }
+            
+           
+
+
             $getIuran = get_field('iuran',$rmid);
             $nominal = '';
 
@@ -1327,44 +1465,65 @@ function user_profile() {
 
         $taxonomy = 'taxblok';
         $terms = get_the_terms( $rmid ,$taxonomy );
+
         if ( !empty( $terms ) ){
             // get the first term
             $term = array_shift( $terms );
             $blok =  $term->name;
         }
 
-        if ( empty( $postrm ) ) {
-            return rest_ensure_response( [
-                'status' => false,
-                'message'   => 'failed'
-                //'data' => '',
-            ] );
+        // if ( empty( $postrm ) ) {
+        //     return rest_ensure_response( [
+        //         'status' => false,
+        //         'message'   => 'failed'
+        //         //'data' => '',
+        //     ] );
             
-        } else {
-            foreach ( $postrm as $post ) {
-            
-                $ins_data[] = array(  // you can ad anything here and as many as you want
-                    'profile_id' =>   $post->ID, 
-                    'name' => $user->data->display_name,
-                    'email' => $user->data->user_email,
-                    'rumah' => $rumah,
-                    'blok' => $blok,
-                    //'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
-                    //'menetap' => get_field('bulan', 'user_' . $userId ).' '.get_field('tahun', 'user_' . $userId ),
-                    // 'link_to_profile' => $post->ID,
-                    'iuran_yang_diikuti' => $iuranUser,
-                    'sync_data' =>  get_field('sinkron_data', 'user_' . $userId ),
-                    'sync_type' =>  get_field('tipe_sinkron', 'user_' . $userId ),
-                );
-            }
+        // } else {
+        //     foreach ( $postrm as $post ) {
+        //         $ins_data[] = array(  // you can ad anything here and as many as you want
+        //             'profile_id' =>   $post->ID, 
+        //             'name' => $user->data->display_name,
+        //             'email' => $user->data->user_email,
+        //             'rumah' => $rumah,
+        //             'blok' => $blok,
+        //             //'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
+        //             //'menetap' => get_field('bulan', 'user_' . $userId ).' '.get_field('tahun', 'user_' . $userId ),
+        //             // 'link_to_profile' => $post->ID,
+        //             'iuran_yang_diikuti' => $iuranUser,
+        //             'sync_data' =>  get_field('sinkron_data', 'user_' . $userId ),
+        //             'sync_type' =>  get_field('tipe_sinkron', 'user_' . $userId ),
+        //         );
+        //     }
 
-            return rest_ensure_response( [
-                'status' => true,
-                'message'   => 'success',
-                'data' => $ins_data,
-                //'test' => $getIuran,
-            ] );
-        }
+        //     return rest_ensure_response( [
+        //         'status' => true,
+        //         'message'   => 'success',
+        //         'data' => $ins_data,
+        //         //'test' => $getIuran,
+        //     ] );
+        // }
+
+        $ins_data[] = array(  // you can ad anything here and as many as you want
+            'profile_id' =>   $post->ID, 
+            'name' => $user->data->display_name,
+            'email' => $user->data->user_email,
+            'rumah' => $rumah,
+            'blok' => $blok,
+            //'status_rumah' => get_field('status_kepemilikan', 'user_' . $userId ),
+            //'menetap' => get_field('bulan', 'user_' . $userId ).' '.get_field('tahun', 'user_' . $userId ),
+            // 'link_to_profile' => $post->ID,
+            'iuran_yang_diikuti' => $iuranUser,
+            'sync_data' =>  get_field('sinkron_data', 'user_' . $userId ),
+            'sync_type' =>  get_field('tipe_sinkron', 'user_' . $userId ),
+        );
+
+        return rest_ensure_response( [
+            'status' => true,
+            'message'   => 'success',
+            'data' => $ins_data,
+            //'test' => $getIuran,
+        ] );
 
     } else {
         return rest_ensure_response( [
@@ -2118,7 +2277,7 @@ function join_iuran($request) {
         }
 
         $iuran = $request ["iuranID"];
-        $title = 'IuranuserID'.$userId.'/'.$iuranName;
+        $title =  $user->data->display_name.' | #'.$userId.' | '.$iuranName;
 
         //create iuran user
         $check_title = get_page_by_title($title, 'OBJECT', 'user-iuran');
